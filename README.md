@@ -37,6 +37,14 @@ class MyTest < Minitest::Test
 end
 ```
 
+Use `refute_allocations` to prevent any allocations of the given types:
+
+```ruby
+refute_allocations(String, Array) do
+  # code that must not allocate strings or arrays
+end
+```
+
 It also works with `Minitest::Spec`:
 
 ```ruby

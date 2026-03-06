@@ -14,5 +14,8 @@ module Minitest
 
     # Fails if any class in limits exceeds its allocation count.
     def assert_allocations: (Hash[untyped, Integer] limits) { (untyped) -> untyped } -> Hash[untyped, Integer]
+
+    # Fails if any of the given classes are allocated within a block.
+    def refute_allocations: (*Class classes) { (untyped) -> untyped } -> void
   end
 end

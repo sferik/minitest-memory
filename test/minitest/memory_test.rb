@@ -122,7 +122,7 @@ class TestMinitestMemory < Minitest::Test
       @tc.assert_allocations(String => 0) { +"hello" }
     end
 
-    assert_match(/Expected at most 0 String allocations/, err.message)
+    assert_match(/Expected no String allocations/, err.message)
   end
 
   def test_assert_allocations_checks_multiple_classes
@@ -138,6 +138,44 @@ class TestMinitestMemory < Minitest::Test
   def test_assert_allocations_reports_actual_count
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(String => 0) { +"hello" }
+    end
+
+    assert_match(/got \d+/, err.message)
+  end
+
+  def test_assert_allocations_reports_limit_in_message
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_allocations(Canary => 1) { 2.times { Canary.new } }
+    end
+
+    assert_match(/Expected at most 1 .* allocations/, err.message)
+  end
+
+  # refute_allocations
+
+  def test_refute_allocations_passes_with_no_allocations
+    @tc.refute_allocations(Float) { +"hello" }
+  end
+
+  def test_refute_allocations_fails_when_class_allocated
+    err = assert_raises Minitest::Assertion do
+      @tc.refute_allocations(String) { +"hello" }
+    end
+
+    assert_match(/Expected no String allocations/, err.message)
+  end
+
+  def test_refute_allocations_checks_multiple_classes
+    err = assert_raises Minitest::Assertion do
+      @tc.refute_allocations(String, Array) { [+"hello"] }
+    end
+
+    assert_match(/String/, err.message)
+  end
+
+  def test_refute_allocations_reports_actual_count
+    err = assert_raises Minitest::Assertion do
+      @tc.refute_allocations(String) { +"hello" }
     end
 
     assert_match(/got \d+/, err.message)

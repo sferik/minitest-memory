@@ -52,9 +52,20 @@ module Minitest
 
       limits.each do |klass, max_count|
         count = actual[klass]
-        msg = "Expected at most #{max_count} #{klass} allocations, got #{count}"
+        limit = max_count.zero? ? "no" : "at most #{max_count}"
+        msg = "Expected #{limit} #{klass} allocations, got #{count}"
         assert_operator max_count, :>=, count, msg
       end
+    end
+
+    ##
+    # Fails if any of the given +classes+ are allocated within a
+    # block. Eg:
+    #
+    #   refute_allocations(String, Array) { 1 + 1 }
+
+    def refute_allocations(*classes, &)
+      assert_allocations(classes.product([0]).to_h, &)
     end
   end
 end
