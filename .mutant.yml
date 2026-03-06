@@ -9,7 +9,9 @@ includes:
 matcher:
   subjects:
     - "Minitest::Memory::AllocationCounter.count"
+    - "Minitest::Memory::AllocationCounter.count_retained"
     - "Minitest::Memory::AllocationCounter.count_allocations"
     - "Minitest::Memory#assert_allocations"
+    - "Minitest::Memory#assert_retentions"
     - "Minitest::Memory#assert_total_allocations"
     - "Minitest::Memory#assert_allocation_limit"

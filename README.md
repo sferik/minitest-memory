@@ -85,6 +85,34 @@ assert_total_allocations(count: 10, size: 1024) { ... }
 assert_total_allocations(count: 5..10) { ... }
 ```
 
+### Retained object tracking
+
+Use `assert_retentions` to check which objects survive garbage collection,
+detecting potential memory leaks:
+
+> [!WARNING]
+> Garbage collection is disabled while the block executes. Avoid long-running
+> or memory-intensive code inside the block.
+
+```ruby
+# Limit retained String objects
+assert_retentions(String => 1) { ... }
+
+# Hash-style limits with count and size
+assert_retentions(String => { count: 1, size: 1024 }) { ... }
+
+# Range limits work too
+assert_retentions(String => 1..5) { ... }
+```
+
+Use `refute_retentions` to prevent any retained objects of the given types:
+
+```ruby
+refute_retentions(String, Array) do
+  # code that must not retain strings or arrays
+end
+```
+
 ### `refute_allocations`
 
 Use `refute_allocations` to prevent any allocations of the given types:

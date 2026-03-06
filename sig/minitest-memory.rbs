@@ -16,6 +16,9 @@ module Minitest
       # Counts allocations by class within a block.
       def self.count: () { (untyped) -> untyped } -> Hash[untyped, Allocation]
 
+      # Counts retained allocations by class within a block.
+      def self.count_retained: () { (untyped) -> untyped } -> Hash[untyped, Allocation]
+
       # Returns a Hash of allocations from a given generation.
       def self.count_allocations: (Integer generation) -> Hash[untyped, Allocation]
     end
@@ -31,8 +34,14 @@ module Minitest
     # Fails if total allocations across all classes exceed the given limits.
     def assert_total_allocations: (?count: allocation_count_limit?, ?size: allocation_count_limit?) { (untyped) -> untyped } -> void
 
+    # Fails if any class in limits exceeds its retention limit.
+    def assert_retentions: (Hash[untyped, allocation_limit] limits) { (untyped) -> untyped } -> void
+
     # Fails if any of the given classes are allocated within a block.
     def refute_allocations: (*Class classes) { (untyped) -> untyped } -> void
+
+    # Fails if any of the given classes are retained within a block.
+    def refute_retentions: (*Class classes) { (untyped) -> untyped } -> void
 
     private
 

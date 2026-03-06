@@ -41,6 +41,23 @@ module Minitest
       end
 
       ##
+      # Counts retained allocations by class within a block.
+      # Returns a Hash mapping each class to an Allocation with
+      # count and size. Runs GC after the block to identify
+      # objects that survive garbage collection.
+
+      def self.count_retained(&)
+        GC.start
+        GC.disable
+        generation = GC.count
+        ObjectSpace.trace_object_allocations(&)
+        GC.start
+        count_allocations generation
+      ensure
+        GC.enable
+      end
+
+      ##
       # Returns a Hash of allocations from the given +generation+.
 
       def self.count_allocations generation
@@ -101,6 +118,35 @@ module Minitest
     end
 
     ##
+    # Fails if any class in +limits+ exceeds its retention limit
+    # within a block. Works like +assert_allocations+ but only
+    # counts objects that survive garbage collection.
+    #
+    # *Warning:* Garbage collection is disabled while the block
+    # executes. Avoid long-running or memory-intensive code inside
+    # the block.
+    #
+    # Eg:
+    #
+    #   assert_retentions(String => 0) { "hello" }
+    #   assert_retentions(String => {count: 1, size: 1024}) { "hello" }
+
+    def assert_retentions(limits, &)
+      actual = AllocationCounter.count_retained(&)
+
+      limits.each do |klass, limit|
+        allocation = actual[klass] || AllocationCounter::EMPTY
+
+        if limit.is_a?(Hash)
+          assert_allocation_limit(klass, limit.fetch(:count), allocation.count, "retentions") if limit.key?(:count)
+          assert_allocation_limit(klass, limit.fetch(:size), allocation.size, "retained bytes") if limit.key?(:size)
+        else
+          assert_allocation_limit(klass, limit, allocation.count, "retentions")
+        end
+      end
+    end
+
+    ##
     # Fails if any of the given +classes+ are allocated within a
     # block. Eg:
     #
@@ -108,6 +154,16 @@ module Minitest
 
     def refute_allocations(*classes, &)
       assert_allocations(classes.product([0]).to_h, &)
+    end
+
+    ##
+    # Fails if any of the given +classes+ are retained within a
+    # block. Eg:
+    #
+    #   refute_retentions(String, Array) { 1 + 1 }
+
+    def refute_retentions(*classes, &)
+      assert_retentions(classes.product([0]).to_h, &)
     end
 
     private

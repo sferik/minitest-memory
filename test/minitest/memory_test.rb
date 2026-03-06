@@ -407,6 +407,209 @@ class TestMinitestMemory < Minitest::Test
     @tc.assert_total_allocations(count: 1..100) { Canary.new }
   end
 
+  # AllocationCounter.count_retained
+
+  def test_count_retained_returns_hash
+    result = Minitest::Memory::AllocationCounter.count_retained { nil }
+
+    assert_instance_of Hash, result
+  end
+
+  def test_count_retained_returns_allocation_values
+    _holder = nil
+    result = Minitest::Memory::AllocationCounter.count_retained { _holder = Canary.new }
+
+    assert_instance_of Minitest::Memory::AllocationCounter::Allocation, result[Canary]
+  end
+
+  def test_count_retained_tracks_retained_objects
+    _holder = nil
+    result = Minitest::Memory::AllocationCounter.count_retained { _holder = Canary.new }
+
+    assert_equal 1, result[Canary].count
+  end
+
+  def test_count_retained_excludes_unreferenced_objects
+    result = Minitest::Memory::AllocationCounter.count_retained do
+      Canary.new
+      nil
+    end
+
+    assert_nil result[Canary]
+  end
+
+  def test_count_retained_tracks_retained_size
+    _holder = nil
+    result = Minitest::Memory::AllocationCounter.count_retained { _holder = +"a" * 10_000 }
+
+    assert_operator result[String].size, :>, 0
+  end
+
+  def test_count_retained_disables_gc_during_block
+    gc_disabled_in_block = nil
+
+    Minitest::Memory::AllocationCounter.count_retained do
+      gc_disabled_in_block = GC.disable
+    end
+
+    assert gc_disabled_in_block
+    GC.enable
+  end
+
+  def test_count_retained_reenables_gc_after_block
+    Minitest::Memory::AllocationCounter.count_retained { nil }
+
+    refute GC.disable
+    GC.enable
+  end
+
+  def test_count_retained_reenables_gc_on_error
+    error = assert_raises(RuntimeError) do
+      Minitest::Memory::AllocationCounter.count_retained { raise "boom" }
+    end
+
+    assert_equal "boom", error.message
+    refute GC.disable
+    GC.enable
+  end
+
+  def test_count_retained_runs_gc_before_block
+    gc_count_in_block = nil
+
+    before = GC.count
+    Minitest::Memory::AllocationCounter.count_retained do
+      gc_count_in_block = GC.count
+    end
+
+    assert_operator gc_count_in_block, :>, before
+  end
+
+  # assert_retentions (integer limit)
+
+  def test_assert_retentions_passes_within_limits
+    _holder = nil
+    @tc.assert_retentions(Canary => 1) { _holder = Canary.new }
+  end
+
+  def test_assert_retentions_passes_zero_when_not_retained
+    @tc.assert_retentions(Canary => 0) do
+      Canary.new
+      nil
+    end
+  end
+
+  def test_assert_retentions_fails_when_exceeding
+    _holder = nil
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_retentions(Canary => 0) { _holder = Canary.new }
+    end
+
+    assert_match(/retentions/, err.message)
+  end
+
+  def test_assert_retentions_reports_class
+    _holder = nil
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_retentions(Canary => 0) { _holder = Canary.new }
+    end
+
+    assert_match(/Canary/, err.message)
+  end
+
+  def test_assert_retentions_reports_actual
+    _holder = nil
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_retentions(Canary => 0) { _holder = Canary.new }
+    end
+
+    assert_match(/got 1/, err.message)
+  end
+
+  def test_assert_retentions_zero_limit_message
+    _holder = nil
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_retentions(Canary => 0) { _holder = Canary.new }
+    end
+
+    assert_match(/Expected no .* retentions/, err.message)
+  end
+
+  # assert_retentions (per-class count)
+
+  def test_assert_retentions_checks_per_class_count
+    holders = []
+    @tc.assert_retentions(Canary => 10..100) do
+      10.times { holders << Canary.new }
+    end
+  end
+
+  # assert_retentions (hash limit with count)
+
+  def test_assert_retentions_count_hash
+    _holder = nil
+    @tc.assert_retentions(Canary => {count: 1}) { _holder = Canary.new }
+  end
+
+  def test_assert_retentions_count_hash_fails
+    _holder = nil
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_retentions(Canary => {count: 0}) { _holder = Canary.new }
+    end
+
+    assert_match(/Canary/, err.message)
+    assert_match(/retentions/, err.message)
+  end
+
+  # assert_retentions (hash limit with size)
+
+  def test_assert_retentions_size_hash
+    _holder = nil
+    @tc.assert_retentions(String => {size: 100_000}) { _holder = +"a" * 10_000 }
+  end
+
+  def test_assert_retentions_size_hash_fails
+    _holder = nil
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_retentions(String => {size: 0}) { _holder = +"a" * 10_000 }
+    end
+
+    assert_match(/String/, err.message)
+    assert_match(/retained bytes/, err.message)
+  end
+
+  # assert_retentions (range limit)
+
+  def test_assert_retentions_range
+    _holder = nil
+    @tc.assert_retentions(Canary => 1..5) { _holder = Canary.new }
+  end
+
+  # assert_retentions with hash subclass limit
+
+  def test_assert_retentions_accepts_hash_subclass_limit
+    _holder = nil
+    limit = HashSubclass[:count, 10]
+    @tc.assert_retentions(Canary => limit) { _holder = Canary.new }
+  end
+
+  # refute_retentions
+
+  def test_refute_retentions_passes_when_not_retained
+    @tc.refute_retentions(Canary) do
+      Canary.new
+      nil
+    end
+  end
+
+  def test_refute_retentions_fails_when_retained
+    _holder = nil
+    err = assert_raises Minitest::Assertion do
+      @tc.refute_retentions(Canary) { _holder = Canary.new }
+    end
+
+    assert_match(/Canary/, err.message)
+  end
+
   # assert_allocations with range subclass limit
 
   class RangeSubclass < Range; end
