@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Range-based limits — limits can be a Range (e.g. `String => 2..5`) to require allocations within a specific range, for both direct and hash-style `:count`/`:size` limits
 - `refute_allocations` — fails if any of the given classes are allocated within a block
 - Allocation size limits — `assert_allocations` now accepts hash limits with `:count` and/or `:size` keys (e.g. `String => { size: 1024 }`)
 

@@ -267,6 +267,85 @@ class TestMinitestMemory < Minitest::Test
     @tc.assert_allocations(String => {count: 100}) { +"a" * 10_000 }
   end
 
+  # assert_allocations (range limit)
+
+  def test_assert_allocations_passes_within_range
+    @tc.assert_allocations(Canary => 1..3) { 2.times { Canary.new } }
+  end
+
+  def test_assert_allocations_range_fails_below
+    assert_raises(Minitest::Assertion) do
+      @tc.assert_allocations(Canary => 3..5) { 2.times { Canary.new } }
+    end
+  end
+
+  def test_assert_allocations_range_fails_above
+    assert_raises(Minitest::Assertion) do
+      @tc.assert_allocations(Canary => 0..1) { 2.times { Canary.new } }
+    end
+  end
+
+  def test_assert_allocations_range_reports_actual
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_allocations(Canary => 3..5) { 2.times { Canary.new } }
+    end
+
+    assert_match(/got 2/, err.message)
+  end
+
+  def test_assert_allocations_range_reports_limit
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_allocations(Canary => 3..5) { Canary.new }
+    end
+
+    assert_match(/within 3\.\.5/, err.message)
+  end
+
+  def test_assert_allocations_range_reports_class
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_allocations(Canary => 3..5) { Canary.new }
+    end
+
+    assert_match(/Canary/, err.message)
+  end
+
+  # assert_allocations (range limit in hash with count)
+
+  def test_assert_allocations_range_count_in_hash
+    @tc.assert_allocations(Canary => {count: 1..3}) { 2.times { Canary.new } }
+  end
+
+  def test_assert_allocations_range_count_in_hash_fails
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_allocations(Canary => {count: 3..5}) { Canary.new }
+    end
+
+    assert_match(/within 3\.\.5 .* allocations/, err.message)
+  end
+
+  # assert_allocations (range limit in hash with size)
+
+  def test_assert_allocations_range_size_in_hash
+    @tc.assert_allocations(String => {size: 100..100_000}) { +"a" * 10_000 }
+  end
+
+  def test_assert_allocations_range_size_in_hash_fails
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_allocations(String => {size: 0..1}) { +"a" * 10_000 }
+    end
+
+    assert_match(/within 0\.\.1 .* allocation bytes/, err.message)
+  end
+
+  # assert_allocations with range subclass limit
+
+  class RangeSubclass < Range; end
+
+  def test_assert_allocations_accepts_range_subclass_limit
+    limit = RangeSubclass.new(1, 3)
+    @tc.assert_allocations(Canary => limit) { 2.times { Canary.new } }
+  end
+
   # assert_allocations with hash subclass limit
 
   class HashSubclass < Hash; end

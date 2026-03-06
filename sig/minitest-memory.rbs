@@ -22,7 +22,8 @@ module Minitest
 
     include Minitest::Assertions
 
-    type allocation_limit = Integer | Hash[Symbol, Integer]
+    type allocation_count_limit = Integer | Range[Integer]
+    type allocation_limit = allocation_count_limit | Hash[Symbol, allocation_count_limit]
 
     # Fails if any class in limits exceeds its allocation limit.
     def assert_allocations: (Hash[untyped, allocation_limit] limits) { (untyped) -> untyped } -> void
@@ -32,7 +33,7 @@ module Minitest
 
     private
 
-    # Asserts that actual does not exceed max for the given klass and metric.
-    def assert_allocation_limit: (untyped klass, Integer max, Integer actual, ?String metric) -> void
+    # Asserts that actual falls within limit for the given klass and metric.
+    def assert_allocation_limit: (untyped klass, allocation_count_limit limit, Integer actual, ?String metric) -> void
   end
 end

@@ -37,6 +37,19 @@ class MyTest < Minitest::Test
 end
 ```
 
+### Range limits
+
+Pass a Range to require allocations within a specific range:
+
+```ruby
+# Require between 2 and 5 String allocations
+assert_allocations(String => 2..5) { ... }
+
+# Range limits work with count and size in hashes too
+assert_allocations(String => { count: 2..5 }) { ... }
+assert_allocations(String => { size: 1024..4096 }) { ... }
+```
+
 ### Size limits
 
 Pass a Hash with `:count` and/or `:size` keys to constrain total bytes
@@ -93,6 +106,7 @@ exceeds its limit, the assertion fails with a message like:
 
 ```
 Expected at most 2 String allocations, got 3
+Expected within 2..5 String allocations, got 1
 Expected at most 1024 String allocation bytes, got 2048
 ```
 

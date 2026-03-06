@@ -58,13 +58,15 @@ module Minitest
 
     ##
     # Fails if any class in +limits+ exceeds its allocation limit
-    # within a block. +limits+ is a Hash mapping classes to either
-    # an Integer (maximum count) or a Hash with +:count+ and/or
-    # +:size+ keys. Eg:
+    # within a block. +limits+ is a Hash mapping classes to an
+    # Integer (maximum count), a Range (required range), or a Hash
+    # with +:count+ and/or +:size+ keys (each an Integer or Range).
+    # Eg:
     #
     #   assert_allocations(String => 1) { "hello" }
+    #   assert_allocations(String => 2..5) { "hello" }
     #   assert_allocations(String => {size: 1024}) { "hello" }
-    #   assert_allocations(String => {count: 1, size: 1024}) { "hello" }
+    #   assert_allocations(String => {count: 1..5, size: 1024}) { "hello" }
 
     def assert_allocations(limits, &)
       actual = AllocationCounter.count(&)
@@ -94,13 +96,19 @@ module Minitest
     private
 
     ##
-    # Asserts that +actual+ does not exceed +max+ for the given
-    # +klass+ and +metric+.
+    # Asserts that +actual+ falls within +limit+ for the given
+    # +klass+ and +metric+. +limit+ may be an Integer (maximum)
+    # or a Range.
 
-    def assert_allocation_limit(klass, max, actual, metric = "allocations")
-      desc = max.zero? ? "no" : "at most #{max}"
-      msg = "Expected #{desc} #{klass} #{metric}, got #{actual}"
-      assert_operator max, :>=, actual, msg
+    def assert_allocation_limit(klass, limit, actual, metric = "allocations")
+      if limit.is_a?(Range) # steep:ignore
+        msg = "Expected within #{limit} #{klass} #{metric}, got #{actual}"
+        assert_includes limit, actual, msg
+      else
+        desc = limit.zero? ? "no" : "at most #{limit}"
+        msg = "Expected #{desc} #{klass} #{metric}, got #{actual}"
+        assert_operator limit, :>=, actual, msg
+      end
     end
   end
 end
