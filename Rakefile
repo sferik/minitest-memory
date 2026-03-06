@@ -40,4 +40,8 @@ task :steep do
   system("bundle exec steep check") || abort("Type checking failed!")
 end
 
+Rake::Task["release"].clear
+desc "Build gem and create tag (gem push handled by CI)"
+task release: %w[build release:guard_clean release:source_control_push]
+
 task default: %i[test lint rdoc_coverage mutant steep]
