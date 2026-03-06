@@ -1,0 +1,5 @@
+plugins:
+  - rubocop-minitest
+  - rubocop-rake
+  - rubocop-thread_safety
+  - standard-performance

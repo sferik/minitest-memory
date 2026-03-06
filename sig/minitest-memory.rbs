@@ -1,0 +1,18 @@
+module Minitest
+  module Memory
+    VERSION: String
+
+    class AllocationCounter
+      # Counts allocations by class within a block.
+      def self.count: () { (untyped) -> untyped } -> Hash[untyped, Integer]
+
+      # Returns a Hash of allocations from a given generation.
+      def self.count_allocations: (Integer generation) -> Hash[untyped, Integer]
+    end
+
+    include Minitest::Assertions
+
+    # Fails if any class in limits exceeds its allocation count.
+    def assert_allocations: (Hash[untyped, Integer] limits) { (untyped) -> untyped } -> Hash[untyped, Integer]
+  end
+end

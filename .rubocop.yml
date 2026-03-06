@@ -1,0 +1,24 @@
+plugins:
+  - rubocop-minitest
+  - rubocop-rake
+  - rubocop-thread_safety
+  - standard-performance
+
+AllCops:
+  NewCops: enable
+
+Metrics/ClassLength:
+  Exclude:
+    - "test/**/*"
+
+Naming/MethodParameterName:
+  Enabled: false
+
+Style/FrozenStringLiteralComment:
+  Enabled: false
+
+Style/MethodDefParentheses:
+  Enabled: false
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes

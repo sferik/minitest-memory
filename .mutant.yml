@@ -1,0 +1,13 @@
+usage: opensource
+integration:
+  name: minitest
+requires:
+  - minitest/memory
+includes:
+  - lib
+  - test
+matcher:
+  subjects:
+    - "Minitest::Memory::AllocationCounter.count"
+    - "Minitest::Memory::AllocationCounter.count_allocations"
+    - "Minitest::Memory#assert_allocations"
