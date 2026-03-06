@@ -20,6 +20,30 @@ class TestMinitestMemory < Minitest::Test
     @tc = DummyTest.new
   end
 
+  # AllocationCounter::Allocation
+
+  def test_allocation_has_count_and_size
+    alloc = Minitest::Memory::AllocationCounter::Allocation.new(1, 100)
+
+    assert_equal 1, alloc.count
+    assert_equal 100, alloc.size
+  end
+
+  # AllocationCounter::SLOT_SIZE
+
+  def test_slot_size_is_positive
+    assert_operator Minitest::Memory::AllocationCounter::SLOT_SIZE, :>, 0
+  end
+
+  # AllocationCounter::EMPTY
+
+  def test_empty_allocation_is_zero
+    empty = Minitest::Memory::AllocationCounter::EMPTY
+
+    assert_equal 0, empty.count
+    assert_equal 0, empty.size
+  end
+
   # AllocationCounter.count
 
   def test_count_returns_hash
@@ -28,22 +52,40 @@ class TestMinitestMemory < Minitest::Test
     assert_instance_of Hash, result
   end
 
+  def test_count_returns_allocation_values
+    result = Minitest::Memory::AllocationCounter.count { +"hello" }
+
+    assert_instance_of Minitest::Memory::AllocationCounter::Allocation, result[String]
+  end
+
   def test_count_tracks_string_allocations
     result = Minitest::Memory::AllocationCounter.count { +"hello" }
 
-    assert_operator result[String], :>=, 1
+    assert_operator result[String].count, :>=, 1
   end
 
   def test_count_tracks_array_allocations
     result = Minitest::Memory::AllocationCounter.count { [1, 2, 3] }
 
-    assert_operator result[Array], :>=, 1
+    assert_operator result[Array].count, :>=, 1
   end
 
-  def test_count_returns_zero_for_unallocated_classes
+  def test_count_returns_nil_for_unallocated_classes
     result = Minitest::Memory::AllocationCounter.count { nil }
 
-    assert_equal 0, result[Float]
+    assert_nil result[Float]
+  end
+
+  def test_count_tracks_allocation_size
+    result = Minitest::Memory::AllocationCounter.count { +"a" * 10_000 }
+
+    assert_operator result[String].size, :>, 0
+  end
+
+  def test_count_subtracts_slot_size_from_allocation
+    result = Minitest::Memory::AllocationCounter.count { Canary.new }
+
+    assert_equal 0, result[Canary].size
   end
 
   def test_count_disables_gc_during_block
@@ -90,7 +132,7 @@ class TestMinitestMemory < Minitest::Test
   def test_count_increments_by_one_per_allocation
     result = Minitest::Memory::AllocationCounter.count { Canary.new }
 
-    assert_equal 1, result[Canary]
+    assert_equal 1, result[Canary].count
   end
 
   # AllocationCounter.count_allocations
@@ -107,7 +149,7 @@ class TestMinitestMemory < Minitest::Test
     assert_empty result
   end
 
-  # assert_allocations
+  # assert_allocations (integer limit)
 
   def test_assert_allocations_passes_within_limits
     @tc.assert_allocations(String => 10) { +"hello" }
@@ -149,6 +191,89 @@ class TestMinitestMemory < Minitest::Test
     end
 
     assert_match(/Expected at most 1 .* allocations/, err.message)
+  end
+
+  # assert_allocations (hash limit with size)
+
+  def test_assert_allocations_passes_within_size_limit
+    @tc.assert_allocations(String => {size: 100_000}) { +"a" * 10_000 }
+  end
+
+  def test_assert_allocations_fails_when_exceeding_size_limit
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_allocations(String => {size: 0}) { +"a" * 10_000 }
+    end
+
+    assert_match(/allocation bytes/, err.message)
+  end
+
+  def test_assert_allocations_size_zero_message
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_allocations(String => {size: 0}) { +"a" * 10_000 }
+    end
+
+    assert_match(/Expected no String allocation bytes/, err.message)
+  end
+
+  def test_assert_allocations_size_reports_limit
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_allocations(String => {size: 1}) { +"a" * 10_000 }
+    end
+
+    assert_match(/Expected at most 1 .* allocation bytes/, err.message)
+  end
+
+  def test_assert_allocations_size_reports_actual
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_allocations(String => {size: 0}) { +"a" * 10_000 }
+    end
+
+    assert_match(/got \d+/, err.message)
+  end
+
+  # assert_allocations (hash limit with count)
+
+  def test_assert_allocations_with_count_hash
+    @tc.assert_allocations(String => {count: 10}) { +"hello" }
+  end
+
+  def test_assert_allocations_fails_count_in_hash
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_allocations(String => {count: 0}) { +"hello" }
+    end
+
+    assert_match(/Expected no String allocations/, err.message)
+  end
+
+  def test_assert_allocations_count_hash_reports_actual
+    err = assert_raises Minitest::Assertion do
+      @tc.assert_allocations(Canary => {count: 0}) { Canary.new }
+    end
+
+    assert_match(/got 1/, err.message)
+  end
+
+  # assert_allocations (hash limit with both count and size)
+
+  def test_assert_allocations_with_count_and_size
+    @tc.assert_allocations(String => {count: 10, size: 100_000}) { +"hello" }
+  end
+
+  def test_assert_allocations_size_only_does_not_check_count
+    @tc.assert_allocations(Canary => {size: 100_000}) { 10.times { Canary.new } }
+  end
+
+  def test_assert_allocations_count_only_hash_does_not_check_size
+    @tc.assert_allocations(String => {count: 100}) { +"a" * 10_000 }
+  end
+
+  # assert_allocations with hash subclass limit
+
+  class HashSubclass < Hash; end
+
+  def test_assert_allocations_accepts_hash_subclass_limit
+    limit = HashSubclass[:count, 10]
+    @tc.assert_allocations(String => limit) { +"hello" }
   end
 
   # refute_allocations

@@ -11,6 +11,9 @@ Metrics/ClassLength:
   Exclude:
     - "test/**/*"
 
+Layout/SpaceInsideHashLiteralBraces:
+  Enabled: false
+
 Naming/MethodParameterName:
   Enabled: false
 

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `refute_allocations` — fails if any of the given classes are allocated within a block
+- Allocation size limits — `assert_allocations` now accepts hash limits with `:count` and/or `:size` keys (e.g. `String => { size: 1024 }`)
 
 ## [1.0.0] - 2026-03-06
 

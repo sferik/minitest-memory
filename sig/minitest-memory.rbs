@@ -3,19 +3,36 @@ module Minitest
     VERSION: String
 
     class AllocationCounter
+      class Allocation < ::Struct[Integer]
+        attr_accessor count: Integer
+        attr_accessor size: Integer
+
+        def self.new: (Integer count, Integer size) -> instance
+      end
+
+      SLOT_SIZE: Integer
+      EMPTY: Allocation
+
       # Counts allocations by class within a block.
-      def self.count: () { (untyped) -> untyped } -> Hash[untyped, Integer]
+      def self.count: () { (untyped) -> untyped } -> Hash[untyped, Allocation]
 
       # Returns a Hash of allocations from a given generation.
-      def self.count_allocations: (Integer generation) -> Hash[untyped, Integer]
+      def self.count_allocations: (Integer generation) -> Hash[untyped, Allocation]
     end
 
     include Minitest::Assertions
 
-    # Fails if any class in limits exceeds its allocation count.
-    def assert_allocations: (Hash[untyped, Integer] limits) { (untyped) -> untyped } -> Hash[untyped, Integer]
+    type allocation_limit = Integer | Hash[Symbol, Integer]
+
+    # Fails if any class in limits exceeds its allocation limit.
+    def assert_allocations: (Hash[untyped, allocation_limit] limits) { (untyped) -> untyped } -> void
 
     # Fails if any of the given classes are allocated within a block.
     def refute_allocations: (*Class classes) { (untyped) -> untyped } -> void
+
+    private
+
+    # Asserts that actual does not exceed max for the given klass and metric.
+    def assert_allocation_limit: (untyped klass, Integer max, Integer actual, ?String metric) -> void
   end
 end

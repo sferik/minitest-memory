@@ -37,6 +37,24 @@ class MyTest < Minitest::Test
 end
 ```
 
+### Size limits
+
+Pass a Hash with `:count` and/or `:size` keys to constrain total bytes
+allocated per class (beyond the base object slot size):
+
+```ruby
+# Limit total String bytes
+assert_allocations(String => { size: 1024 }) { ... }
+
+# Limit both count and size
+assert_allocations(String => { count: 2, size: 1024 }) { ... }
+
+# Count-only via hash (equivalent to String => 2)
+assert_allocations(String => { count: 2 }) { ... }
+```
+
+### `refute_allocations`
+
 Use `refute_allocations` to prevent any allocations of the given types:
 
 ```ruby
@@ -44,6 +62,8 @@ refute_allocations(String, Array) do
   # code that must not allocate strings or arrays
 end
 ```
+
+### Minitest::Spec
 
 It also works with `Minitest::Spec`:
 
@@ -68,11 +88,12 @@ end
 
 `assert_allocations` uses `ObjectSpace.trace_object_allocations` to track
 every object allocated during the block's execution. It then compares the
-counts per class against the limits you provide. If any class exceeds its
-limit, the assertion fails with a message like:
+counts and sizes per class against the limits you provide. If any class
+exceeds its limit, the assertion fails with a message like:
 
 ```
-Expected at most 0 String allocations, got 3
+Expected at most 2 String allocations, got 3
+Expected at most 1024 String allocation bytes, got 2048
 ```
 
 ## License
