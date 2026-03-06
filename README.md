@@ -66,6 +66,25 @@ assert_allocations(String => { count: 2, size: 1024 }) { ... }
 assert_allocations(String => { count: 2 }) { ... }
 ```
 
+### Global limits
+
+Use `assert_total_allocations` to set limits on the total count or size
+across all classes:
+
+```ruby
+# Limit total object count across all classes
+assert_total_allocations(count: 10) { ... }
+
+# Limit total allocation bytes across all classes
+assert_total_allocations(size: 1024) { ... }
+
+# Limit both count and size
+assert_total_allocations(count: 10, size: 1024) { ... }
+
+# Ranges work too
+assert_total_allocations(count: 5..10) { ... }
+```
+
 ### `refute_allocations`
 
 Use `refute_allocations` to prevent any allocations of the given types:
@@ -108,6 +127,7 @@ exceeds its limit, the assertion fails with a message like:
 Expected at most 2 String allocations, got 3
 Expected within 2..5 String allocations, got 1
 Expected at most 1024 String allocation bytes, got 2048
+Expected at most 10 total allocations, got 15
 ```
 
 ## License

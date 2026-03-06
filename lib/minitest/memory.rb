@@ -84,6 +84,23 @@ module Minitest
     end
 
     ##
+    # Fails if the total allocations across all classes exceed
+    # the given +count+ or +size+ limits within a block.
+    # Limits may be an Integer (maximum) or a Range. Eg:
+    #
+    #   assert_total_allocations(count: 10) { "hello" }
+    #   assert_total_allocations(size: 1024) { "hello" }
+    #   assert_total_allocations(count: 5..10, size: 1024) { "hello" }
+
+    def assert_total_allocations(count: nil, size: nil, &)
+      actual = AllocationCounter.count(&)
+      total_count = actual.each_value.sum(&:count) # steep:ignore
+      total_size = actual.each_value.sum(&:size) # steep:ignore
+      assert_allocation_limit("total", count, total_count) if count
+      assert_allocation_limit("total", size, total_size, "allocation bytes") if size
+    end
+
+    ##
     # Fails if any of the given +classes+ are allocated within a
     # block. Eg:
     #
