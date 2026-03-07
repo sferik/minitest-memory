@@ -13,5 +13,6 @@ matcher:
     - "Minitest::Memory::AllocationCounter.count_allocations"
     - "Minitest::Memory#assert_allocations"
     - "Minitest::Memory#assert_retentions"
-    - "Minitest::Memory#assert_total_allocations"
+    - "Minitest::Memory#assert_allocation_entry"
+    - "Minitest::Memory#assert_per_class_limit"
     - "Minitest::Memory#assert_allocation_limit"

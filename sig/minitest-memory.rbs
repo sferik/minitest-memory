@@ -34,9 +34,6 @@ module Minitest
     # Fails if any class in limits exceeds its allocation limit.
     def assert_allocations: (Hash[untyped, allocation_limit] limits) { (untyped) -> untyped } -> void
 
-    # Fails if total allocations across all classes exceed the given limits.
-    def assert_total_allocations: (?count: allocation_count_limit?, ?size: allocation_count_limit?) { (untyped) -> untyped } -> void
-
     # Fails if any class in limits exceeds its retention limit.
     def assert_retentions: (Hash[untyped, allocation_limit] limits) { (untyped) -> untyped } -> void
 
@@ -51,9 +48,6 @@ module Minitest
       # See Minitest::Memory#assert_allocations.
       def must_limit_allocations: (Hash[untyped, allocation_limit] limits) -> void
 
-      # See Minitest::Memory#assert_total_allocations.
-      def must_limit_total_allocations: (?count: allocation_count_limit?, ?size: allocation_count_limit?) -> void
-
       # See Minitest::Memory#assert_retentions.
       def must_limit_retentions: (Hash[untyped, allocation_limit] limits) -> void
 
@@ -65,6 +59,12 @@ module Minitest
     end
 
     private
+
+    # Dispatches a single limit entry for the given klass against actual allocations.
+    def assert_allocation_entry: (untyped klass, allocation_limit limit, Hash[untyped, AllocationCounter::Allocation] actual) -> void
+
+    # Asserts per-class limit against allocation for the given klass.
+    def assert_per_class_limit: (untyped klass, AllocationCounter::Allocation allocation, allocation_limit limit, ?String metric, ?String size_metric) -> void
 
     # Asserts that actual falls within limit for the given klass and metric.
     def assert_allocation_limit: (untyped klass, allocation_count_limit limit, Integer actual, ?String metric) -> void

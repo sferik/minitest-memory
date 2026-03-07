@@ -78,43 +78,19 @@ module Minitest
     # within a block. +limits+ is a Hash mapping classes to an
     # Integer (maximum count), a Range (required range), or a Hash
     # with +:count+ and/or +:size+ keys (each an Integer or Range).
-    # Eg:
+    #
+    # Use the +:count+ and +:size+ symbol keys to set global limits
+    # across all classes. Eg:
     #
     #   assert_allocations(String => 1) { "hello" }
     #   assert_allocations(String => 2..5) { "hello" }
     #   assert_allocations(String => {size: 1024}) { "hello" }
-    #   assert_allocations(String => {count: 1..5, size: 1024}) { "hello" }
+    #   assert_allocations(count: 10) { "hello" }
+    #   assert_allocations(String => 1, count: 10) { "hello" }
 
     def assert_allocations(limits, &)
       actual = AllocationCounter.count(&)
-
-      limits.each do |klass, limit|
-        allocation = actual[klass] || AllocationCounter::EMPTY
-
-        if limit.is_a?(Hash)
-          assert_allocation_limit(klass, limit.fetch(:count), allocation.count) if limit.key?(:count)
-          assert_allocation_limit(klass, limit.fetch(:size), allocation.size, "allocation bytes") if limit.key?(:size)
-        else
-          assert_allocation_limit(klass, limit, allocation.count)
-        end
-      end
-    end
-
-    ##
-    # Fails if the total allocations across all classes exceed
-    # the given +count+ or +size+ limits within a block.
-    # Limits may be an Integer (maximum) or a Range. Eg:
-    #
-    #   assert_total_allocations(count: 10) { "hello" }
-    #   assert_total_allocations(size: 1024) { "hello" }
-    #   assert_total_allocations(count: 5..10, size: 1024) { "hello" }
-
-    def assert_total_allocations(count: nil, size: nil, &)
-      actual = AllocationCounter.count(&)
-      total_count = actual.each_value.sum(&:count) # steep:ignore
-      total_size = actual.each_value.sum(&:size) # steep:ignore
-      assert_allocation_limit("total", count, total_count) if count
-      assert_allocation_limit("total", size, total_size, "allocation bytes") if size
+      limits.each { |klass, limit| assert_allocation_entry(klass, limit, actual) }
     end
 
     ##
@@ -135,14 +111,7 @@ module Minitest
       actual = AllocationCounter.count_retained(&)
 
       limits.each do |klass, limit|
-        allocation = actual[klass] || AllocationCounter::EMPTY
-
-        if limit.is_a?(Hash)
-          assert_allocation_limit(klass, limit.fetch(:count), allocation.count, "retentions") if limit.key?(:count)
-          assert_allocation_limit(klass, limit.fetch(:size), allocation.size, "retained bytes") if limit.key?(:size)
-        else
-          assert_allocation_limit(klass, limit, allocation.count, "retentions")
-        end
+        assert_per_class_limit(klass, actual[klass] || AllocationCounter::EMPTY, limit, "retentions", "retained bytes")
       end
     end
 
@@ -193,15 +162,6 @@ module Minitest
       end
 
       ##
-      # See Minitest::Memory#assert_total_allocations.
-      #
-      #   _ { code }.must_limit_total_allocations(count: 10)
-
-      def must_limit_total_allocations(count: nil, size: nil)
-        ctx.assert_total_allocations(count: count, size: size, &target) # steep:ignore
-      end
-
-      ##
       # See Minitest::Memory#assert_retentions.
       #
       #   _ { code }.must_limit_retentions(String => 1)
@@ -230,6 +190,36 @@ module Minitest
     end
 
     private
+
+    ##
+    # Dispatches a single +limit+ entry for the given +klass+
+    # against +actual+ allocations. Routes +:count+ and +:size+
+    # to total-limit checks, and everything else to per-class checks.
+
+    def assert_allocation_entry(klass, limit, actual)
+      case klass
+      when :count
+        assert_allocation_limit("total", limit, actual.each_value.sum(&:count)) # steep:ignore
+      when :size
+        assert_allocation_limit("total", limit, actual.each_value.sum(&:size), "allocation bytes") # steep:ignore
+      else
+        assert_per_class_limit(klass, actual[klass] || AllocationCounter::EMPTY, limit)
+      end
+    end
+
+    ##
+    # Asserts per-class +limit+ against +allocation+ for the given
+    # +klass+. +limit+ may be an Integer, Range, or Hash with
+    # +:count+ and/or +:size+ keys.
+
+    def assert_per_class_limit(klass, allocation, limit, metric = "allocations", size_metric = "allocation bytes")
+      if limit.is_a?(Hash)
+        assert_allocation_limit(klass, limit.fetch(:count), allocation.count, metric) if limit.key?(:count)
+        assert_allocation_limit(klass, limit.fetch(:size), allocation.size, size_metric) if limit.key?(:size)
+      else
+        assert_allocation_limit(klass, limit, allocation.count, metric)
+      end
+    end
 
     ##
     # Asserts that +actual+ falls within +limit+ for the given

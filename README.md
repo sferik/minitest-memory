@@ -68,21 +68,24 @@ assert_allocations(String => { count: 2 }) { ... }
 
 ### Global limits
 
-Use `assert_total_allocations` to set limits on the total count or size
+Use the `:count` and `:size` symbol keys to set limits on total allocations
 across all classes:
 
 ```ruby
 # Limit total object count across all classes
-assert_total_allocations(count: 10) { ... }
+assert_allocations(count: 10) { ... }
 
 # Limit total allocation bytes across all classes
-assert_total_allocations(size: 1024) { ... }
+assert_allocations(size: 1024) { ... }
 
 # Limit both count and size
-assert_total_allocations(count: 10, size: 1024) { ... }
+assert_allocations(count: 10, size: 1024) { ... }
 
 # Ranges work too
-assert_total_allocations(count: 5..10) { ... }
+assert_allocations(count: 5..10) { ... }
+
+# Combine per-class and global limits
+assert_allocations(String => 2, count: 10) { ... }
 ```
 
 ### Retained object tracking
@@ -155,10 +158,9 @@ _ { code }.must_limit_allocations(String => 2)
 _ { code }.must_limit_allocations(String => { count: 2, size: 1024 })
 _ { code }.must_limit_allocations(String => 2..5)
 
-# Limit total allocations across all classes (wraps assert_total_allocations)
-_ { code }.must_limit_total_allocations(count: 10)
-_ { code }.must_limit_total_allocations(size: 1024)
-_ { code }.must_limit_total_allocations(count: 5..10, size: 1024)
+# Limit total allocations across all classes
+_ { code }.must_limit_allocations(count: 10)
+_ { code }.must_limit_allocations(count: 5..10, size: 1024)
 
 # Limit retained objects (wraps assert_retentions)
 _ { code }.must_limit_retentions(String => 1)

@@ -337,74 +337,80 @@ class TestMinitestMemory < Minitest::Test
     assert_match(/within 0\.\.1 .* allocation bytes/, err.message)
   end
 
-  # assert_total_allocations (count limit)
+  # assert_allocations (total count limit)
 
-  def test_assert_total_allocations_count_passes
-    @tc.assert_total_allocations(count: 100) { Canary.new }
+  def test_assert_allocations_total_count_passes
+    @tc.assert_allocations(count: 100) { Canary.new }
   end
 
-  def test_assert_total_allocations_count_fails
+  def test_assert_allocations_total_count_fails
     err = assert_raises Minitest::Assertion do
-      @tc.assert_total_allocations(count: 0) { Canary.new }
+      @tc.assert_allocations(count: 0) { Canary.new }
     end
 
     assert_match(/total allocations/, err.message)
   end
 
-  def test_assert_total_allocations_count_reports_actual
+  def test_assert_allocations_total_count_reports_actual
     err = assert_raises Minitest::Assertion do
-      @tc.assert_total_allocations(count: 0) { Canary.new }
+      @tc.assert_allocations(count: 0) { Canary.new }
     end
 
     assert_match(/got \d+/, err.message)
   end
 
-  # assert_total_allocations (size limit)
+  # assert_allocations (total size limit)
 
-  def test_assert_total_allocations_size_passes
-    @tc.assert_total_allocations(size: 100_000) { +"a" * 10_000 }
+  def test_assert_allocations_total_size_passes
+    @tc.assert_allocations(size: 100_000) { +"a" * 10_000 }
   end
 
-  def test_assert_total_allocations_size_fails
+  def test_assert_allocations_total_size_fails
     err = assert_raises Minitest::Assertion do
-      @tc.assert_total_allocations(size: 0) { +"a" * 10_000 }
+      @tc.assert_allocations(size: 0) { +"a" * 10_000 }
     end
 
     assert_match(/total allocation bytes/, err.message)
   end
 
-  def test_assert_total_allocations_size_zero_with_zero_size_object
-    @tc.assert_total_allocations(size: 0) { Canary.new }
+  def test_assert_allocations_total_size_zero_with_zero_size_object
+    @tc.assert_allocations(size: 0) { Canary.new }
   end
 
-  # assert_total_allocations (count only does not check size)
+  # assert_allocations (total count only does not check size)
 
-  def test_assert_total_allocations_count_only_skips_size
-    @tc.assert_total_allocations(count: 100) { +"a" * 10_000 }
+  def test_assert_allocations_total_count_only_skips_size
+    @tc.assert_allocations(count: 100) { +"a" * 10_000 }
   end
 
-  # assert_total_allocations (size only does not check count)
+  # assert_allocations (total size only does not check count)
 
-  def test_assert_total_allocations_size_only_skips_count
-    @tc.assert_total_allocations(size: 100_000) { 100.times { Canary.new } }
+  def test_assert_allocations_total_size_only_skips_count
+    @tc.assert_allocations(size: 100_000) { 100.times { Canary.new } }
   end
 
-  # assert_total_allocations (count sums across instances)
+  # assert_allocations (total count sums across instances)
 
-  def test_assert_total_allocations_sums_counts
-    @tc.assert_total_allocations(count: 50..1000) { 100.times { Canary.new } }
+  def test_assert_allocations_total_sums_counts
+    @tc.assert_allocations(count: 50..1000) { 100.times { Canary.new } }
   end
 
-  # assert_total_allocations (count and size)
+  # assert_allocations (total count and size)
 
-  def test_assert_total_allocations_count_and_size
-    @tc.assert_total_allocations(count: 100, size: 100_000) { +"hello" }
+  def test_assert_allocations_total_count_and_size
+    @tc.assert_allocations(count: 100, size: 100_000) { +"hello" }
   end
 
-  # assert_total_allocations (range limit)
+  # assert_allocations (total range limit)
 
-  def test_assert_total_allocations_count_range
-    @tc.assert_total_allocations(count: 1..100) { Canary.new }
+  def test_assert_allocations_total_count_range
+    @tc.assert_allocations(count: 1..100) { Canary.new }
+  end
+
+  # assert_allocations (combined per-class and total)
+
+  def test_assert_allocations_combined_per_class_and_total
+    @tc.assert_allocations(Canary => 1, :count => 100) { Canary.new }
   end
 
   # AllocationCounter.count_retained
@@ -678,30 +684,18 @@ class TestMinitestMemory < Minitest::Test
     assert_match(/Expected no String allocations/, err.message)
   end
 
-  # must_limit_total_allocations
+  # must_limit_allocations (total limits)
 
-  def test_must_limit_total_allocations_count_passes
-    expectation(proc { Canary.new }).must_limit_total_allocations(count: 100)
+  def test_must_limit_allocations_total_count_passes
+    expectation(proc { Canary.new }).must_limit_allocations(count: 100)
   end
 
-  def test_must_limit_total_allocations_count_fails
+  def test_must_limit_allocations_total_count_fails
     err = assert_raises Minitest::Assertion do
-      expectation(proc { Canary.new }).must_limit_total_allocations(count: 0)
+      expectation(proc { Canary.new }).must_limit_allocations(count: 0)
     end
 
     assert_match(/total allocations/, err.message)
-  end
-
-  def test_must_limit_total_allocations_size_passes
-    expectation(proc { +"a" * 10_000 }).must_limit_total_allocations(size: 100_000)
-  end
-
-  def test_must_limit_total_allocations_size_fails
-    err = assert_raises Minitest::Assertion do
-      expectation(proc { +"a" * 10_000 }).must_limit_total_allocations(size: 0)
-    end
-
-    assert_match(/total allocation bytes/, err.message)
   end
 
   # must_limit_retentions
