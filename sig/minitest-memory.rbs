@@ -47,6 +47,9 @@ module Minitest
 
       # Finds or creates the Allocation entry for obj.
       def self.bucket_for: (untyped obj, Array[Module] klasses, Hash[untyped, Allocation] allocated, Hash[untyped, Allocation] ignored) -> Allocation
+
+      # Creates a new zeroed Allocation with a default-value sources hash.
+      def self.new_allocation: () -> Allocation
     end
 
     include Minitest::Assertions

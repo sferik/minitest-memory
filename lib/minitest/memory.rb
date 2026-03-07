@@ -72,7 +72,7 @@ module Minitest
       def self.count_allocations(generation, klasses = [])
         allocated = {} #: Hash[untyped, Allocation]
         ignored = {} #: Hash[untyped, Allocation]
-        total = Allocation.new(0, 0, {})
+        total = new_allocation
 
         ObjectSpace.each_object do |obj|
           next unless ObjectSpace.allocation_generation(obj) == generation
@@ -128,8 +128,8 @@ module Minitest
         # :nocov:
 
         source = "#{file}:#{ObjectSpace.allocation_sourceline(obj)}"
-        total.sources[source] = (total.sources[source] || 0) + 1
-        bucket.sources[source] = (bucket.sources[source] || 0) + 1
+        total.sources[source] += 1
+        bucket.sources[source] += 1
       end
       private_class_method :record_source
 
@@ -139,14 +139,22 @@ module Minitest
       # or files into +ignored+.
 
       def self.bucket_for(obj, klasses, allocated, ignored)
-        return allocated[obj.class] ||= Allocation.new(0, 0, {}) if klasses.empty?
+        return allocated[obj.class] ||= new_allocation if klasses.empty?
 
         klass = klasses.find { |k| obj.is_a?(k) }
-        return allocated[klass] ||= Allocation.new(0, 0, {}) if klass
+        return allocated[klass] ||= new_allocation if klass
 
-        ignored[obj.class] ||= Allocation.new(0, 0, {})
+        ignored[obj.class] ||= new_allocation
       end
       private_class_method :bucket_for
+
+      ##
+      # Creates a new zeroed Allocation with a default-value sources hash.
+
+      def self.new_allocation
+        Allocation.new(0, 0, Hash.new(0))
+      end
+      private_class_method :new_allocation
     end
 
     ##
