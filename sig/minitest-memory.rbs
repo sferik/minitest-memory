@@ -28,6 +28,9 @@ module Minitest
     type allocation_count_limit = Integer | Range[Integer]
     type allocation_limit = allocation_count_limit | Hash[Symbol, allocation_count_limit]
 
+    # Includes Expectations into Minitest::Expectation when minitest/spec is loaded.
+    def self.included: (Module base) -> void
+
     # Fails if any class in limits exceeds its allocation limit.
     def assert_allocations: (Hash[untyped, allocation_limit] limits) { (untyped) -> untyped } -> void
 
@@ -42,6 +45,24 @@ module Minitest
 
     # Fails if any of the given classes are retained within a block.
     def refute_retentions: (*Class classes) { (untyped) -> untyped } -> void
+
+    # Minitest::Spec expectations for memory allocation assertions.
+    module Expectations
+      # See Minitest::Memory#assert_allocations.
+      def must_limit_allocations: (Hash[untyped, allocation_limit] limits) -> void
+
+      # See Minitest::Memory#assert_total_allocations.
+      def must_limit_total_allocations: (?count: allocation_count_limit?, ?size: allocation_count_limit?) -> void
+
+      # See Minitest::Memory#assert_retentions.
+      def must_limit_retentions: (Hash[untyped, allocation_limit] limits) -> void
+
+      # See Minitest::Memory#refute_allocations.
+      def wont_allocate: (*Class classes) -> void
+
+      # See Minitest::Memory#refute_retentions.
+      def wont_retain: (*Class classes) -> void
+    end
 
     private
 

@@ -657,4 +657,95 @@ class TestMinitestMemory < Minitest::Test
 
     assert_match(/got \d+/, err.message)
   end
+
+  # Expectations
+
+  def expectation(target)
+    Minitest::Expectation.new(target, @tc)
+  end
+
+  # must_limit_allocations
+
+  def test_must_limit_allocations_passes_within_limits
+    expectation(proc { +"hello" }).must_limit_allocations(String => 10)
+  end
+
+  def test_must_limit_allocations_fails_when_exceeding
+    err = assert_raises Minitest::Assertion do
+      expectation(proc { +"hello" }).must_limit_allocations(String => 0)
+    end
+
+    assert_match(/Expected no String allocations/, err.message)
+  end
+
+  # must_limit_total_allocations
+
+  def test_must_limit_total_allocations_count_passes
+    expectation(proc { Canary.new }).must_limit_total_allocations(count: 100)
+  end
+
+  def test_must_limit_total_allocations_count_fails
+    err = assert_raises Minitest::Assertion do
+      expectation(proc { Canary.new }).must_limit_total_allocations(count: 0)
+    end
+
+    assert_match(/total allocations/, err.message)
+  end
+
+  def test_must_limit_total_allocations_size_passes
+    expectation(proc { +"a" * 10_000 }).must_limit_total_allocations(size: 100_000)
+  end
+
+  def test_must_limit_total_allocations_size_fails
+    err = assert_raises Minitest::Assertion do
+      expectation(proc { +"a" * 10_000 }).must_limit_total_allocations(size: 0)
+    end
+
+    assert_match(/total allocation bytes/, err.message)
+  end
+
+  # must_limit_retentions
+
+  def test_must_limit_retentions_passes_within_limits
+    _holder = nil
+    expectation(proc { _holder = Canary.new }).must_limit_retentions(Canary => 1)
+  end
+
+  def test_must_limit_retentions_fails_when_exceeding
+    _holder = nil
+    err = assert_raises Minitest::Assertion do
+      expectation(proc { _holder = Canary.new }).must_limit_retentions(Canary => 0)
+    end
+
+    assert_match(/Canary/, err.message)
+  end
+
+  # wont_allocate
+
+  def test_wont_allocate_passes_with_no_allocations
+    expectation(proc { +"hello" }).wont_allocate(Float)
+  end
+
+  def test_wont_allocate_fails_when_class_allocated
+    err = assert_raises Minitest::Assertion do
+      expectation(proc { +"hello" }).wont_allocate(String)
+    end
+
+    assert_match(/Expected no String allocations/, err.message)
+  end
+
+  # wont_retain
+
+  def test_wont_retain_passes_when_not_retained
+    expectation(proc { Canary.new; nil }).wont_retain(Canary) # rubocop:disable Style/Semicolon
+  end
+
+  def test_wont_retain_fails_when_retained
+    _holder = nil
+    err = assert_raises Minitest::Assertion do
+      expectation(proc { _holder = Canary.new }).wont_retain(Canary)
+    end
+
+    assert_match(/Canary/, err.message)
+  end
 end

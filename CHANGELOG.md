@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Minitest::Spec expectations — `must_limit_allocations`, `must_limit_total_allocations`, `must_limit_retentions`, `wont_allocate`, and `wont_retain` (e.g. `_ { code }.must_limit_allocations(String => {count: 10})`)
 - `assert_retentions` — track retained objects that survive GC, detecting potential memory leaks (e.g. `assert_retentions(String => 0)`)
 - `refute_retentions` — fails if any of the given classes are retained after GC within a block
 - `assert_total_allocations` — set global `count:` or `size:` limits across all allocated classes (e.g. `assert_total_allocations(count: 10)`)

@@ -166,6 +166,69 @@ module Minitest
       assert_retentions(classes.product([0]).to_h, &)
     end
 
+    ##
+    # Includes +Expectations+ into +Minitest::Expectation+ when
+    # +minitest/spec+ is loaded, enabling the +must_*+ / +wont_*+
+    # expectation syntax.
+
+    def self.included(base) # :nodoc:
+      super
+      # :nocov:
+      Minitest::Expectation.include(Expectations) if defined?(Minitest::Expectation)
+      # :nocov:
+    end
+
+    ##
+    # Minitest::Spec expectations for memory allocation assertions.
+    # These methods are added to +Minitest::Expectation+ when
+    # +minitest/spec+ is loaded.
+    module Expectations
+      ##
+      # See Minitest::Memory#assert_allocations.
+      #
+      #   _ { code }.must_limit_allocations(String => {count: 10})
+
+      def must_limit_allocations(limits)
+        ctx.assert_allocations(limits, &target) # steep:ignore
+      end
+
+      ##
+      # See Minitest::Memory#assert_total_allocations.
+      #
+      #   _ { code }.must_limit_total_allocations(count: 10)
+
+      def must_limit_total_allocations(count: nil, size: nil)
+        ctx.assert_total_allocations(count: count, size: size, &target) # steep:ignore
+      end
+
+      ##
+      # See Minitest::Memory#assert_retentions.
+      #
+      #   _ { code }.must_limit_retentions(String => 1)
+
+      def must_limit_retentions(limits)
+        ctx.assert_retentions(limits, &target) # steep:ignore
+      end
+
+      ##
+      # See Minitest::Memory#refute_allocations.
+      #
+      #   _ { code }.wont_allocate(String, Array)
+
+      def wont_allocate(*classes)
+        ctx.refute_allocations(*classes, &target) # steep:ignore
+      end
+
+      ##
+      # See Minitest::Memory#refute_retentions.
+      #
+      #   _ { code }.wont_retain(String, Array)
+
+      def wont_retain(*classes)
+        ctx.refute_retentions(*classes, &target) # steep:ignore
+      end
+    end
+
     private
 
     ##

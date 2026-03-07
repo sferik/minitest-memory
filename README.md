@@ -125,7 +125,8 @@ end
 
 ### Minitest::Spec
 
-It also works with `Minitest::Spec`:
+It also works with `Minitest::Spec`. Include `Minitest::Memory` in your spec
+class to use both assertions and expectations:
 
 ```ruby
 require "minitest/autorun"
@@ -142,6 +143,32 @@ describe MyClass do
     end
   end
 end
+```
+
+#### Expectations
+
+The following `must_*` / `wont_*` expectations are available:
+
+```ruby
+# Limit allocations per class (wraps assert_allocations)
+_ { code }.must_limit_allocations(String => 2)
+_ { code }.must_limit_allocations(String => { count: 2, size: 1024 })
+_ { code }.must_limit_allocations(String => 2..5)
+
+# Limit total allocations across all classes (wraps assert_total_allocations)
+_ { code }.must_limit_total_allocations(count: 10)
+_ { code }.must_limit_total_allocations(size: 1024)
+_ { code }.must_limit_total_allocations(count: 5..10, size: 1024)
+
+# Limit retained objects (wraps assert_retentions)
+_ { code }.must_limit_retentions(String => 1)
+_ { code }.must_limit_retentions(String => { count: 1, size: 1024 })
+
+# Prevent allocations of specific classes (wraps refute_allocations)
+_ { code }.wont_allocate(String, Array)
+
+# Prevent retained objects of specific classes (wraps refute_retentions)
+_ { code }.wont_retain(String, Array)
 ```
 
 ## How It Works
