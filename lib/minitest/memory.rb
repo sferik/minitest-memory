@@ -18,6 +18,12 @@ module Minitest
       Allocation = Struct.new(:count, :size) # rubocop:disable Lint/StructNewOverride
 
       ##
+      # Holds allocation counting results: +allocated+ maps matched
+      # classes to Allocations, +ignored+ maps unmatched classes,
+      # and +total+ is the aggregate Allocation across all objects.
+      Result = Struct.new(:allocated, :ignored, :total)
+
+      ##
       # Base memory size of an empty Ruby object slot.
       SLOT_SIZE = ObjectSpace.memsize_of(Object.new)
 
@@ -26,61 +32,118 @@ module Minitest
       EMPTY = Allocation.new(0, 0).freeze
 
       ##
-      # Counts allocations by class within a block. Returns a Hash
-      # mapping each class to an Allocation with count and size.
-      # Temporarily disables GC during counting.
+      # Returns +false+ on TruffleRuby where ObjectSpace tracing
+      # is not supported, +true+ otherwise.
 
-      def self.count(&)
+      def self.supported?
+        # :nocov:
+        return false if RUBY_ENGINE == "truffleruby"
+        # :nocov:
+
+        ObjectSpace.respond_to?(:trace_object_allocations)
+      end
+
+      ##
+      # Counts allocations by class within a block. Returns a
+      # Result. When +klasses+ are given, objects are matched via
+      # +is_a?+; unmatched objects go to +ignored+. Temporarily
+      # disables GC during counting.
+
+      def self.count(klasses = [], &)
+        # :nocov:
+        return Result.new({}, {}, EMPTY) unless supported?
+        # :nocov:
+
         GC.start
         GC.disable
         generation = GC.count
         ObjectSpace.trace_object_allocations(&)
-        count_allocations generation
+        count_allocations(generation, klasses)
       ensure
         GC.enable
       end
 
       ##
       # Counts retained allocations by class within a block.
-      # Returns a Hash mapping each class to an Allocation with
-      # count and size. Runs GC after the block to identify
+      # Returns a Result. Runs GC after the block to identify
       # objects that survive garbage collection.
 
-      def self.count_retained(&)
+      def self.count_retained(klasses = [], &)
+        # :nocov:
+        return Result.new({}, {}, EMPTY) unless supported?
+        # :nocov:
+
         GC.start
         GC.disable
         generation = GC.count
         ObjectSpace.trace_object_allocations(&)
         GC.start
-        count_allocations generation
+        count_allocations(generation, klasses)
       ensure
         GC.enable
       end
 
       ##
-      # Returns a Hash of allocations from the given +generation+.
+      # Returns a Result of allocations from the given +generation+.
+      # When +klasses+ are given, objects are matched via +is_a?+
+      # and unmatched objects are tracked separately in +ignored+
+      # with a warning emitted for each.
 
-      def self.count_allocations generation
-        allocations = {} # steep:ignore
+      def self.count_allocations(generation, klasses = [])
+        allocated = {} # steep:ignore
+        ignored = {} # steep:ignore
+        total = Allocation.new(0, 0)
+
         ObjectSpace.each_object do |obj|
           next unless ObjectSpace.allocation_generation(obj) == generation
 
-          allocation = allocations[obj.class] ||= Allocation.new(0, 0)
-          allocation.count += 1
-          allocation.size += ObjectSpace.memsize_of(obj) - SLOT_SIZE
+          tally_object(obj, total, find_allocation(obj, klasses, allocated, ignored))
         end
-        allocations
+
+        Result.new(allocated, ignored, total)
       end
+
+      ##
+      # Tallies one object's count and byte size into both the
+      # +total+ and per-class +allocation+ entries.
+
+      def self.tally_object(obj, total, allocation)
+        size = ObjectSpace.memsize_of(obj) - SLOT_SIZE
+        total.count += 1
+        total.size += size
+        allocation.count += 1
+        allocation.size += size
+      end
+      private_class_method :tally_object
+
+      ##
+      # Finds or creates the Allocation entry for +obj+. When
+      # +klasses+ are given, matches via +is_a?+ into +allocated+
+      # or warns and files into +ignored+.
+
+      def self.find_allocation(obj, klasses, allocated, ignored)
+        return allocated[obj.class] ||= Allocation.new(0, 0) if klasses.empty?
+
+        klass = klasses.find { |k| obj.is_a?(k) }
+        return allocated[klass] ||= Allocation.new(0, 0) if klass
+
+        ignored[obj.class] ||= Allocation.new(0, 0)
+      end
+      private_class_method :find_allocation
     end
 
     ##
-    # Fails if any class in +limits+ exceeds its allocation limit
-    # within a block. +limits+ is a Hash mapping classes to an
-    # Integer (maximum count), a Range (required range), or a Hash
+    # Fails if any class in +limits+ does not match its allocation
+    # limit within a block. +limits+ is a Hash mapping classes to
+    # an Integer (exact count), a Range (required range), or a Hash
     # with +:count+ and/or +:size+ keys (each an Integer or Range).
     #
+    # Objects are matched to classes via +is_a?+, so specifying
+    # +Numeric+ captures +Integer+, +Float+, etc.
+    #
     # Use the +:count+ and +:size+ symbol keys to set global limits
-    # across all classes. Eg:
+    # across all classes. When no global limit is set, allocations
+    # of unspecified classes cause a failure (strict mode).
     #
     #   assert_allocations(String => 1) { "hello" }
     #   assert_allocations(String => 2..5) { "hello" }
@@ -89,8 +152,17 @@ module Minitest
     #   assert_allocations(String => 1, count: 10) { "hello" }
 
     def assert_allocations(limits, &)
-      actual = AllocationCounter.count(&)
-      limits.each { |klass, limit| assert_allocation_entry(klass, limit, actual) }
+      klasses = limits.keys.select { |k| k.is_a?(Module) }
+      has_total_limit = limits.key?(:count) || limits.key?(:size)
+      result = AllocationCounter.count(klasses, &)
+
+      limits.each { |klass, limit| assert_allocation_entry(klass, limit, result) }
+
+      return if has_total_limit
+
+      result.ignored.each do |klass, allocation|
+        flunk "Allocated #{allocation.count} #{klass} instances, #{allocation.size} bytes, but it was not specified"
+      end
     end
 
     ##
@@ -108,10 +180,12 @@ module Minitest
     #   assert_retentions(String => {count: 1, size: 1024}) { "hello" }
 
     def assert_retentions(limits, &)
-      actual = AllocationCounter.count_retained(&)
+      klasses = limits.keys.select { |k| k.is_a?(Module) }
+      result = AllocationCounter.count_retained(klasses, &)
 
       limits.each do |klass, limit|
-        assert_per_class_limit(klass, actual[klass] || AllocationCounter::EMPTY, limit, "retentions", "retained bytes")
+        assert_per_class_limit(klass, result.allocated[klass] ||
+          AllocationCounter::EMPTY, limit, "retentions", "retained bytes")
       end
     end
 
@@ -122,7 +196,12 @@ module Minitest
     #   refute_allocations(String, Array) { 1 + 1 }
 
     def refute_allocations(*classes, &)
-      assert_allocations(classes.product([0]).to_h, &)
+      result = AllocationCounter.count(classes, &)
+
+      classes.each do |klass|
+        allocation = result.allocated[klass] || AllocationCounter::EMPTY
+        assert_allocation_limit(klass, 0, allocation.count)
+      end
     end
 
     ##
@@ -132,7 +211,12 @@ module Minitest
     #   refute_retentions(String, Array) { 1 + 1 }
 
     def refute_retentions(*classes, &)
-      assert_retentions(classes.product([0]).to_h, &)
+      result = AllocationCounter.count_retained(classes, &)
+
+      classes.each do |klass|
+        allocation = result.allocated[klass] || AllocationCounter::EMPTY
+        assert_allocation_limit(klass, 0, allocation.count, "retentions")
+      end
     end
 
     ##
@@ -193,17 +277,17 @@ module Minitest
 
     ##
     # Dispatches a single +limit+ entry for the given +klass+
-    # against +actual+ allocations. Routes +:count+ and +:size+
-    # to total-limit checks, and everything else to per-class checks.
+    # against the +result+. Routes +:count+ and +:size+ to
+    # total-limit checks, and everything else to per-class checks.
 
-    def assert_allocation_entry(klass, limit, actual)
+    def assert_allocation_entry(klass, limit, result)
       case klass
       when :count
-        assert_allocation_limit("total", limit, actual.each_value.sum(&:count)) # steep:ignore
+        assert_allocation_limit("total", limit, result.total.count) # steep:ignore
       when :size
-        assert_allocation_limit("total", limit, actual.each_value.sum(&:size), "allocation bytes") # steep:ignore
+        assert_allocation_limit("total", limit, result.total.size, "allocation bytes") # steep:ignore
       else
-        assert_per_class_limit(klass, actual[klass] || AllocationCounter::EMPTY, limit)
+        assert_per_class_limit(klass, result.allocated[klass] || AllocationCounter::EMPTY, limit)
       end
     end
 
@@ -222,18 +306,18 @@ module Minitest
     end
 
     ##
-    # Asserts that +actual+ falls within +limit+ for the given
-    # +klass+ and +metric+. +limit+ may be an Integer (maximum)
-    # or a Range.
+    # Asserts that +actual+ matches +limit+ for the given +klass+
+    # and +metric+. +limit+ may be an Integer (exact match) or a
+    # Range (inclusion check).
 
     def assert_allocation_limit(klass, limit, actual, metric = "allocations")
       if limit.is_a?(Range) # steep:ignore
         msg = "Expected within #{limit} #{klass} #{metric}, got #{actual}"
         assert_includes limit, actual, msg
       else
-        desc = limit.zero? ? "no" : "at most #{limit}"
+        desc = limit.zero? ? "no" : "exactly #{limit}"
         msg = "Expected #{desc} #{klass} #{metric}, got #{actual}"
-        assert_operator limit, :>=, actual, msg
+        assert_equal limit, actual, msg
       end
     end
   end

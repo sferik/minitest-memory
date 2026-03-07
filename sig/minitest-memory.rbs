@@ -10,17 +10,39 @@ module Minitest
         def self.new: (Integer count, Integer size) -> instance
       end
 
+      class Result < ::Struct[untyped]
+        attr_accessor allocated: Hash[untyped, Allocation]
+        attr_accessor ignored: Hash[untyped, Allocation]
+        attr_accessor total: Allocation
+
+        def self.new: (Hash[untyped, Allocation] allocated, Hash[untyped, Allocation] ignored, Allocation total) -> instance
+      end
+
       SLOT_SIZE: Integer
       EMPTY: Allocation
 
+      # Returns false on TruffleRuby, true otherwise.
+      def self.supported?: () -> bool
+
       # Counts allocations by class within a block.
-      def self.count: () { (untyped) -> untyped } -> Hash[untyped, Allocation]
+      def self.count: (?Array[Module] klasses) { (untyped) -> untyped } -> Result
 
       # Counts retained allocations by class within a block.
-      def self.count_retained: () { (untyped) -> untyped } -> Hash[untyped, Allocation]
+      def self.count_retained: (?Array[Module] klasses) { (untyped) -> untyped } -> Result
 
-      # Returns a Hash of allocations from a given generation.
-      def self.count_allocations: (Integer generation) -> Hash[untyped, Allocation]
+      # Returns a Result of allocations from a given generation.
+      def self.count_allocations: (Integer generation, ?Array[Module] klasses) -> Result
+
+      private
+
+      # Tallies one object's count and byte size into both the total and per-class allocation entries.
+      def self.tally_object: (untyped obj, Allocation total, Allocation allocation) -> void
+
+      # Finds or creates the Allocation entry for obj.
+      def self.find_allocation: (untyped obj, Array[Module] klasses, Hash[untyped, Allocation] allocated, Hash[untyped, Allocation] ignored) -> Allocation
+
+      # Emits a warning for an unmatched allocation.
+      def self.warn_ignored: (untyped obj) -> void
     end
 
     include Minitest::Assertions
@@ -60,8 +82,8 @@ module Minitest
 
     private
 
-    # Dispatches a single limit entry for the given klass against actual allocations.
-    def assert_allocation_entry: (untyped klass, allocation_limit limit, Hash[untyped, AllocationCounter::Allocation] actual) -> void
+    # Dispatches a single limit entry for the given klass against the result.
+    def assert_allocation_entry: (untyped klass, allocation_limit limit, AllocationCounter::Result result) -> void
 
     # Asserts per-class limit against allocation for the given klass.
     def assert_per_class_limit: (untyped klass, AllocationCounter::Allocation allocation, allocation_limit limit, ?String metric, ?String size_metric) -> void
