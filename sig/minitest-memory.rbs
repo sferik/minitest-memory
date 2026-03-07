@@ -6,8 +6,9 @@ module Minitest
       class Allocation < ::Struct[Integer]
         attr_accessor count: Integer
         attr_accessor size: Integer
+        attr_accessor sources: Hash[String, Integer]
 
-        def self.new: (Integer count, Integer size) -> instance
+        def self.new: (Integer count, Integer size, Hash[String, Integer] sources) -> instance
       end
 
       class Result < ::Struct[untyped]
@@ -35,14 +36,17 @@ module Minitest
 
       private
 
-      # Tallies one object's count and byte size into both the total and per-class allocation entries.
-      def self.tally_object: (untyped obj, Allocation total, Allocation allocation) -> void
+      # Traces object allocations within a block.
+      def self.trace: (Array[Module] klasses, ?retain: bool) { (untyped) -> untyped } -> Result
+
+      # Tallies one object's count and byte size into total and bucket.
+      def self.tally: (untyped obj, Allocation total, Allocation bucket) -> void
+
+      # Records the source location of obj into total and bucket source hashes.
+      def self.record_source: (untyped obj, Allocation total, Allocation bucket) -> void
 
       # Finds or creates the Allocation entry for obj.
-      def self.find_allocation: (untyped obj, Array[Module] klasses, Hash[untyped, Allocation] allocated, Hash[untyped, Allocation] ignored) -> Allocation
-
-      # Emits a warning for an unmatched allocation.
-      def self.warn_ignored: (untyped obj) -> void
+      def self.bucket_for: (untyped obj, Array[Module] klasses, Hash[untyped, Allocation] allocated, Hash[untyped, Allocation] ignored) -> Allocation
     end
 
     include Minitest::Assertions
@@ -67,6 +71,12 @@ module Minitest
 
     # Minitest::Spec expectations for memory allocation assertions.
     module Expectations
+      # The test context from Minitest::Expectation.
+      def ctx: () -> untyped
+
+      # The target value or block from Minitest::Expectation.
+      def target: () -> untyped
+
       # See Minitest::Memory#assert_allocations.
       def must_limit_allocations: (Hash[untyped, allocation_limit] limits) -> void
 
@@ -82,13 +92,25 @@ module Minitest
 
     private
 
-    # Dispatches a single limit entry for the given klass against the result.
-    def assert_allocation_entry: (untyped klass, allocation_limit limit, AllocationCounter::Result result) -> void
+    # Checks all limits entries against result.
+    def check_limits: (Hash[untyped, allocation_limit] limits, AllocationCounter::Result result, ?metric: String, ?size_metric: String) -> void
 
-    # Asserts per-class limit against allocation for the given klass.
-    def assert_per_class_limit: (untyped klass, AllocationCounter::Allocation allocation, allocation_limit limit, ?String metric, ?String size_metric) -> void
+    # Dispatches a single limit entry for the given klass against the result.
+    def check_limit_entry: (untyped klass, allocation_limit limit, AllocationCounter::Result result, metric: String, size_metric: String) -> void
+
+    # Checks a total :count or :size limit against the aggregate total allocation.
+    def check_total_limit: (:count | :size klass, allocation_count_limit limit, AllocationCounter::Allocation total, size_metric: String) -> void
+
+    # Checks per-class limit against allocation for the given klass.
+    def check_class_limit: (untyped klass, AllocationCounter::Allocation allocation, allocation_limit limit, metric: String, size_metric: String) -> void
 
     # Asserts that actual falls within limit for the given klass and metric.
-    def assert_allocation_limit: (untyped klass, allocation_count_limit limit, Integer actual, ?String metric) -> void
+    def check_limit: (untyped klass, allocation_count_limit limit, Integer actual, ?metric: String, sources: Hash[String, Integer]) -> void
+
+    # Asserts zero allocations for each class in classes.
+    def check_zero: (AllocationCounter::Result result, Array[Class] classes, ?metric: String) -> void
+
+    # Formats allocation sources as a newline-separated list of source locations.
+    def format_sources: (Hash[String, Integer] sources) -> String
   end
 end

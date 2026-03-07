@@ -178,13 +178,13 @@ _ { code }.wont_retain(String, Array)
 `assert_allocations` uses `ObjectSpace.trace_object_allocations` to track
 every object allocated during the block's execution. It then compares the
 counts and sizes per class against the limits you provide. If any class
-exceeds its limit, the assertion fails with a message like:
+exceeds its limit, the assertion fails with a message that includes the
+source location of each allocation, sorted by frequency:
 
 ```
-Expected at most 2 String allocations, got 3
-Expected within 2..5 String allocations, got 1
-Expected at most 1024 String allocation bytes, got 2048
-Expected at most 10 total allocations, got 15
+Expected no String allocations, got 3
+  2× at app/models/user.rb:42
+  1× at lib/serializer.rb:18
 ```
 
 ## License

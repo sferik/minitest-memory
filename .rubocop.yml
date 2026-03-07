@@ -23,5 +23,8 @@ Style/FrozenStringLiteralComment:
 Style/MethodDefParentheses:
   Enabled: false
 
+Layout/LeadingCommentSpace:
+  AllowRBSInlineAnnotation: true
+
 Style/StringLiterals:
   EnforcedStyle: double_quotes

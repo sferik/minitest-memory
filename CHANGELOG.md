@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Allocation source locations in failure messages — when an assertion fails, the error message now includes where each allocation originated (file and line number), sorted by frequency
 - Minitest::Spec expectations — `must_limit_allocations`, `must_limit_retentions`, `wont_allocate`, and `wont_retain` (e.g. `_ { code }.must_limit_allocations(String => {count: 10})`)
 - `assert_retentions` — track retained objects that survive GC, detecting potential memory leaks (e.g. `assert_retentions(String => 0)`)
 - `refute_retentions` — fails if any of the given classes are retained after GC within a block
