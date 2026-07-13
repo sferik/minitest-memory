@@ -38,9 +38,7 @@ module Minitest
       # is not supported, +true+ otherwise.
 
       def self.supported?
-        # :nocov:
-        return false if RUBY_ENGINE == "truffleruby"
-        # :nocov:
+        return false if RUBY_ENGINE == "truffleruby" # simplecov:disable
 
         ObjectSpace.respond_to?(:trace_object_allocations)
       end
@@ -88,9 +86,7 @@ module Minitest
       # running GC to identify retained objects. Returns a Result.
 
       def self.trace(klasses, retain: false, &)
-        # :nocov:
-        return Result.new({}, {}, EMPTY) unless supported?
-        # :nocov:
+        return Result.new({}, {}, EMPTY) unless supported? # simplecov:disable
 
         GC.start
         GC.disable
@@ -123,9 +119,7 @@ module Minitest
 
       def self.record_source(obj, total, bucket)
         file = ObjectSpace.allocation_sourcefile(obj)
-        # :nocov:
-        return unless file
-        # :nocov:
+        return unless file # simplecov:disable
 
         source = "#{file}:#{ObjectSpace.allocation_sourceline(obj)}"
         total.sources[source] += 1
@@ -177,7 +171,7 @@ module Minitest
     #   assert_allocations(String => 1, count: 10) { "hello" }
 
     def assert_allocations(limits, &)
-      klasses = limits.keys.select { |k| k.is_a?(Module) }
+      klasses = limits.keys.grep(Module)
       has_total_limit = limits.key?(:count) || limits.key?(:size)
       result = AllocationCounter.count(klasses, &)
 
@@ -205,7 +199,7 @@ module Minitest
     #   assert_retentions(String => {count: 1, size: 1024}) { "hello" }
 
     def assert_retentions(limits, &)
-      klasses = limits.keys.select { |k| k.is_a?(Module) }
+      klasses = limits.keys.grep(Module)
       result = AllocationCounter.count_retained(klasses, &)
 
       check_limits(limits, result, metric: "retentions", size_metric: "retained bytes")
@@ -238,9 +232,7 @@ module Minitest
 
     def self.included(base) # :nodoc:
       super
-      # :nocov:
-      Minitest::Expectation.include(Expectations) if defined?(Minitest::Expectation)
-      # :nocov:
+      Minitest::Expectation.include(Expectations) if defined?(Minitest::Expectation) # simplecov:disable
     end
 
     ##
