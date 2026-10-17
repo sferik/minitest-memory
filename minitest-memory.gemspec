@@ -18,7 +18,7 @@ Gem::Specification.new do |spec|
     "documentation_uri" => "https://www.rubydoc.info/gems/minitest-memory"
   }
 
-  spec.files = Dir["lib/**/*.rb", "CHANGELOG.md", "LICENSE.txt", "README.md"]
+  spec.files = Dir["lib/**/*.rb", "sig/**/*.rbs", "CHANGELOG.md", "LICENSE.txt", "README.md"]
   spec.require_paths = ["lib"]
 
   spec.add_dependency "minitest", ">= 5.21", "< 7"
