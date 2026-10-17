@@ -194,7 +194,7 @@ module Minitest
     #   assert_allocations(String => 1, count: 10) { "hello" }
 
     def assert_allocations(limits, &)
-      return untraced(&) unless AllocationCounter.supported?
+      skip_untraced(&) unless AllocationCounter.supported?
 
       klasses = limits.keys.grep(Module)
       has_total_limit = limits.key?(:count) || limits.key?(:size)
@@ -217,7 +217,7 @@ module Minitest
     #   assert_retentions(String => {count: 1, size: 1024}) { "hello" }
 
     def assert_retentions(limits, &)
-      return untraced(&) unless AllocationCounter.supported?
+      skip_untraced(&) unless AllocationCounter.supported?
 
       klasses = limits.keys.grep(Module)
       result = AllocationCounter.count_retained(klasses, &)
@@ -232,6 +232,8 @@ module Minitest
     #   refute_allocations(String, Array) { 1 + 1 }
 
     def refute_allocations(*classes, &)
+      skip_untraced(&) unless AllocationCounter.supported?
+
       check_zero(AllocationCounter.count(classes, &), classes)
     end
 
@@ -242,6 +244,8 @@ module Minitest
     #   refute_retentions(String, Array) { 1 + 1 }
 
     def refute_retentions(*classes, &)
+      skip_untraced(&) unless AllocationCounter.supported?
+
       check_zero(AllocationCounter.count_retained(classes, &), classes, metric: "retentions")
     end
 
@@ -301,11 +305,12 @@ module Minitest
 
     ##
     # Runs the block where allocations can't be traced (JRuby,
-    # TruffleRuby): there's nothing to check, so the assertion passes.
+    # TruffleRuby), then skips the test: nothing was checked, so it
+    # shouldn't pass.
 
-    def untraced
+    def skip_untraced
       yield # steep:ignore InsufficientPositionalArguments
-      nil
+      skip "Allocations can't be traced on #{RUBY_ENGINE}"
     end
 
     ##

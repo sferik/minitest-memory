@@ -350,22 +350,22 @@ class TestMinitestMemory < Minitest::Test
   end
 
   # Where allocations can't be traced, the assertions run their block
-  # and check nothing (so limits that want allocations don't fail).
+  # and then skip the test, since nothing was checked.
 
-  def test_assert_allocations_runs_the_block_and_checks_nothing_when_unsupported
-    ran = false
-    result = stub_unsupported { @tc.assert_allocations(Canary => 2) { ran = true } }
-
-    assert_nil result
-    assert_true ran
+  def test_assert_allocations_runs_the_block_then_skips_when_unsupported
+    assert_runs_block_then_skips { |blk| @tc.assert_allocations(Canary => 2, &blk) }
   end
 
-  def test_assert_retentions_runs_the_block_and_checks_nothing_when_unsupported
-    ran = false
-    result = stub_unsupported { @tc.assert_retentions(Canary => 1) { ran = true } }
+  def test_assert_retentions_runs_the_block_then_skips_when_unsupported
+    assert_runs_block_then_skips { |blk| @tc.assert_retentions(Canary => 1, &blk) }
+  end
 
-    assert_nil result
-    assert_true ran
+  def test_refute_allocations_runs_the_block_then_skips_when_unsupported
+    assert_runs_block_then_skips { |blk| @tc.refute_allocations(Canary, &blk) }
+  end
+
+  def test_refute_retentions_runs_the_block_then_skips_when_unsupported
+    assert_runs_block_then_skips { |blk| @tc.refute_retentions(Canary, &blk) }
   end
 
   # assert_allocations (integer limit)
@@ -1061,6 +1061,16 @@ class TestMinitestMemory < Minitest::Test
   ensure
     AC.singleton_class.remove_method(:supported?)
     AC.define_singleton_method(:supported?, &original)
+  end
+
+  def assert_runs_block_then_skips
+    ran = false
+    err = stub_unsupported do
+      assert_raises(Minitest::Skip) { yield proc { ran = true } }
+    end
+
+    assert_true ran
+    assert_equal "Allocations can't be traced on #{RUBY_ENGINE}", err.message
   end
 
   def assert_empty_counter_result(result)

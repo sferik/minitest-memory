@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Loading on JRuby, whose `objspace` has no `ObjectSpace.memsize_of` (the gem raised `NoMethodError` as it loaded)
-- Where allocations can't be traced (JRuby, TruffleRuby), assertions now run their block (they used to skip it) and check nothing, instead of failing limits that expect allocations
+- Where allocations can't be traced (JRuby, TruffleRuby), assertions now run their block (they used to skip it) and then skip the test, instead of failing limits that expect allocations or passing without checking anything
 
 ## [1.1.0] - 2026-03-08
 

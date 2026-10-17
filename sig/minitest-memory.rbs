@@ -98,8 +98,8 @@ module Minitest
 
     private
 
-    # Runs the block where allocations can't be traced.
-    def untraced: () { (untyped) -> untyped } -> nil
+    # Runs the block where allocations can't be traced, then skips the test.
+    def skip_untraced: () { (untyped) -> untyped } -> bot
 
     # Fails for allocations of classes the limits didn't name.
     def check_unspecified: (AllocationCounter::Result result) -> void
