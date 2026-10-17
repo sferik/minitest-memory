@@ -6,7 +6,8 @@ Gem::Specification.new do |spec|
   spec.authors = ["Erik Berlin"]
   spec.email = ["sferik@gmail.com"]
   spec.summary = "Memory allocation assertions for Minitest"
-  spec.description = "Provides assert_allocations to verify object allocation counts within a block."
+  spec.description = "Assertions and expectations that limit the objects a block allocates or retains, " \
+                     "by count and size, with the source location of each allocation in failure messages."
   spec.homepage = "https://sferik.github.io/minitest-memory"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2"
