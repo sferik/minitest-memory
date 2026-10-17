@@ -11,6 +11,16 @@ Add to your Gemfile:
 gem "minitest-memory"
 ```
 
+## Supported Rubies
+
+minitest-memory requires Ruby 3.2 or later. Counting allocations relies on
+CRuby's `ObjectSpace` allocation tracing, so it works only on CRuby.
+
+On JRuby and TruffleRuby, allocations can't be counted. The assertions and
+expectations still run their block, then skip the test, so the test run
+shows that nothing was checked instead of passing. Because a skip ends the
+test, any assertions after it in the same test don't run on those Rubies.
+
 ## Usage
 
 Include `Minitest::Memory` in your test class, then use `assert_allocations`
