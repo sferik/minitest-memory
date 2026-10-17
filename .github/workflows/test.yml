@@ -12,8 +12,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # Development Rubies (ruby-head, jruby-head) can't fail the build; a
-    # failure there opens an issue instead (see the last step).
+    # Development Rubies (ruby-head, jruby-head, truffleruby-head) can't
+    # fail the build; a failure there opens an issue instead (see the last
+    # step).
     continue-on-error: ${{ matrix.experimental }}
     permissions:
       contents: read
@@ -21,12 +22,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ruby-version: ["3.2", "3.3", "3.4", "4.0", "jruby"]
+        ruby-version: ["3.2", "3.3", "3.4", "4.0", "jruby", "truffleruby"]
         experimental: [false]
         include:
           - ruby-version: head
             experimental: true
           - ruby-version: jruby-head
+            experimental: true
+          - ruby-version: truffleruby-head
             experimental: true
     steps:
       - uses: actions/checkout@v4
