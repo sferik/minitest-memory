@@ -6,13 +6,28 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Development Rubies (ruby-head, jruby-head) can't fail the build; a
+    # failure there opens an issue instead (see the last step).
+    continue-on-error: ${{ matrix.experimental }}
+    permissions:
+      contents: read
+      issues: write
     strategy:
       fail-fast: false
       matrix:
-        ruby-version: ["3.2", "3.3", "3.4", "4.0"]
+        ruby-version: ["3.2", "3.3", "3.4", "4.0", "jruby"]
+        experimental: [false]
+        include:
+          - ruby-version: head
+            experimental: true
+          - ruby-version: jruby-head
+            experimental: true
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
@@ -20,3 +35,23 @@ jobs:
           bundler-cache: true
           ruby-version: ${{ matrix.ruby-version }}
       - run: bundle exec rake test
+      # Opens an issue for the failure (or comments on the one already
+      # open), which notifies the repository's watchers. Pull requests
+      # from forks can't write issues, so only pushes report.
+      - name: Report a failure on a development Ruby
+        if: failure() && matrix.experimental && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUBY_VERSION_NAME: ${{ matrix.ruby-version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          echo "::warning::Tests fail on $RUBY_VERSION_NAME (allowed to fail): $RUN_URL"
+          title="Tests fail on $RUBY_VERSION_NAME"
+          body="The $RUBY_VERSION_NAME job failed on $GITHUB_SHA: $RUN_URL"
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number,title \
+            --jq "map(select(.title == \"$title\")) | first | .number // empty")
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi
