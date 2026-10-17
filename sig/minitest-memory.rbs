@@ -39,6 +39,9 @@ module Minitest
       # Traces object allocations within a block.
       def self.trace: (Array[Module] klasses, ?retain: bool) { (untyped) -> untyped } -> Result
 
+      # Runs the block where allocations can't be traced; returns an empty Result.
+      def self.untraced: () { (untyped) -> untyped } -> Result
+
       # Tallies one object's count and byte size into total and bucket.
       def self.tally: (untyped obj, Allocation total, Allocation bucket) -> void
 
@@ -94,6 +97,12 @@ module Minitest
     end
 
     private
+
+    # Runs the block where allocations can't be traced.
+    def untraced: () { (untyped) -> untyped } -> nil
+
+    # Fails for allocations of classes the limits didn't name.
+    def check_unspecified: (AllocationCounter::Result result) -> void
 
     # Checks all limits entries against result.
     def check_limits: (Hash[untyped, allocation_limit] limits, AllocationCounter::Result result, ?metric: String, ?size_metric: String) -> void

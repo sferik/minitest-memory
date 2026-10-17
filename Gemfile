@@ -11,4 +11,4 @@ gem "rubocop-thread_safety", ">= 0.7"
 gem "simplecov", ">= 1"
 gem "standard", ">= 1.54"
 gem "standard-performance", ">= 1.9"
-gem "steep", ">= 1.10"
+gem "steep", ">= 1.10", platforms: :ruby

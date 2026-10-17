@@ -1,4 +1,10 @@
-require "objspace"
+# :nocov:
+begin
+  require "objspace"
+rescue LoadError
+  # objspace is not available on JRuby
+end
+# :nocov:
 require "minitest/strict"
 require_relative "memory/version"
 
@@ -25,7 +31,14 @@ module Minitest
 
       ##
       # Base memory size of an empty Ruby object slot.
-      SLOT_SIZE = ObjectSpace.memsize_of(Object.new)
+      # :nocov:
+      SLOT_SIZE =
+        if ObjectSpace.respond_to?(:memsize_of)
+          ObjectSpace.memsize_of(Object.new)
+        else
+          0
+        end
+      # :nocov:
 
       empty_sources = {} #: Hash[String, Integer]
 
@@ -86,7 +99,7 @@ module Minitest
       # running GC to identify retained objects. Returns a Result.
 
       def self.trace(klasses, retain: false, &)
-        return Result.new({}, {}, EMPTY) unless supported? # simplecov:disable
+        return untraced(&) unless supported?
 
         GC.start
         GC.disable
@@ -98,6 +111,16 @@ module Minitest
         GC.enable
       end
       private_class_method :trace
+
+      ##
+      # Runs the block where allocations can't be traced, returning an
+      # empty Result.
+
+      def self.untraced
+        yield # steep:ignore InsufficientPositionalArguments
+        Result.new({}, {}, EMPTY)
+      end
+      private_class_method :untraced
 
       ##
       # Tallies one object's count and byte size into both the
@@ -171,19 +194,14 @@ module Minitest
     #   assert_allocations(String => 1, count: 10) { "hello" }
 
     def assert_allocations(limits, &)
+      return untraced(&) unless AllocationCounter.supported?
+
       klasses = limits.keys.grep(Module)
       has_total_limit = limits.key?(:count) || limits.key?(:size)
       result = AllocationCounter.count(klasses, &)
 
       check_limits(limits, result)
-
-      return if has_total_limit
-
-      result.ignored.each do |klass, alloc|
-        msg = "Allocated #{alloc.count} #{klass} instances, #{alloc.size} bytes, " \
-              "but it was not specified#{format_sources(alloc.sources)}"
-        flunk msg
-      end
+      check_unspecified(result) unless has_total_limit
     end
 
     ##
@@ -199,6 +217,8 @@ module Minitest
     #   assert_retentions(String => {count: 1, size: 1024}) { "hello" }
 
     def assert_retentions(limits, &)
+      return untraced(&) unless AllocationCounter.supported?
+
       klasses = limits.keys.grep(Module)
       result = AllocationCounter.count_retained(klasses, &)
 
@@ -278,6 +298,27 @@ module Minitest
     end
 
     private
+
+    ##
+    # Runs the block where allocations can't be traced (JRuby,
+    # TruffleRuby): there's nothing to check, so the assertion passes.
+
+    def untraced
+      yield # steep:ignore InsufficientPositionalArguments
+      nil
+    end
+
+    ##
+    # Fails for allocations of classes +limits+ didn't name (when it set
+    # no total limit).
+
+    def check_unspecified(result)
+      result.ignored.each do |klass, alloc|
+        msg = "Allocated #{alloc.count} #{klass} instances, #{alloc.size} bytes, " \
+              "but it was not specified#{format_sources(alloc.sources)}"
+        flunk msg
+      end
+    end
 
     ##
     # Checks all +limits+ entries against +result+. Routes +:count+

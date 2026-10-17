@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Loading on JRuby, whose `objspace` has no `ObjectSpace.memsize_of` (the gem raised `NoMethodError` as it loaded)
+- Where allocations can't be traced (JRuby, TruffleRuby), assertions now run their block (they used to skip it) and check nothing, instead of failing limits that expect allocations
+
 ## [1.1.0] - 2026-03-08
 
 ### Added

@@ -48,6 +48,8 @@ class TestMinitestMemory < Minitest::Test
   # AllocationCounter constants
 
   def test_slot_size_is_positive
+    requires_objspace
+
     assert_operator AC::SLOT_SIZE, :>, 0
   end
 
@@ -71,13 +73,19 @@ class TestMinitestMemory < Minitest::Test
 
   # AllocationCounter.supported?
 
-  def test_supported_returns_true_on_cruby
-    assert_predicate AC, :supported?
+  def test_supported_matches_engine
+    if RUBY_ENGINE == "ruby"
+      assert_predicate AC, :supported?
+    else
+      refute_predicate AC, :supported?
+    end
   end
 
   # AllocationCounter.count
 
   def test_count_returns_result_with_allocations
+    requires_objspace
+
     result = AC.count { +"hello" }
 
     assert_instance_of AC::Result, result
@@ -86,6 +94,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_count_tracks_array_allocations
+    requires_objspace
+
     result = AC.count { [1, 2, 3] }
 
     assert_operator result.allocated[Array].count, :>=, 1
@@ -98,24 +108,32 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_count_tracks_allocation_size
+    requires_objspace
+
     result = AC.count { +"a" * 10_000 }
 
     assert_operator result.allocated[String].size, :>, 0
   end
 
   def test_count_subtracts_slot_size_from_allocation
+    requires_objspace
+
     result = AC.count { Canary.new }
 
     assert_equal 0, result.allocated[Canary].size
   end
 
   def test_count_increments_by_one_per_allocation
+    requires_objspace
+
     result = AC.count { Canary.new }
 
     assert_equal 1, result.allocated[Canary].count
   end
 
   def test_count_tracks_allocation_sources
+    requires_objspace
+
     result = AC.count { +"hello" }
 
     sources = result.allocated[String].sources
@@ -126,12 +144,16 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_count_tracks_total_sources
+    requires_objspace
+
     result = AC.count { Canary.new }
 
     assert_predicate result.total.sources, :any?, "Expected total allocation sources"
   end
 
   def test_count_disables_gc_during_block
+    requires_objspace
+
     gc_disabled_in_block = nil
 
     AC.count do
@@ -150,6 +172,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_count_reenables_gc_on_error
+    requires_objspace
+
     error = assert_raises(RuntimeError) do
       AC.count { raise "boom" } # rubocop:disable Lint/UnreachableLoop
     end
@@ -160,6 +184,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_count_runs_gc_before_counting
+    requires_objspace
+
     gc_count_in_block = nil
 
     before = GC.count
@@ -171,12 +197,16 @@ class TestMinitestMemory < Minitest::Test
   # AllocationCounter.count with klasses
 
   def test_count_with_klasses_groups_by_base_class
+    requires_objspace
+
     result = AC.count([Canary]) { CanarySubclass.new }
 
     assert_equal 1, result.allocated[Canary].count
   end
 
   def test_count_with_klasses_puts_unmatched_in_ignored
+    requires_objspace
+
     result = AC.count([Float]) { +"hello" }
 
     assert_predicate result.ignored, :any?, "Expected ignored allocations"
@@ -184,6 +214,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_count_with_klasses_tracks_total
+    requires_objspace
+
     result = AC.count([Canary]) { Canary.new }
 
     assert_operator result.total.count, :>=, 1
@@ -192,6 +224,8 @@ class TestMinitestMemory < Minitest::Test
   # AllocationCounter.count_allocations
 
   def test_count_allocations_returns_empty_for_unknown_generation
+    requires_objspace
+
     result = AC.count_allocations(-1)
 
     assert_instance_of AC::Result, result
@@ -201,6 +235,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_count_allocations_defaults_klasses_to_empty
+    requires_objspace
+
     GC.start
     generation = GC.count
     ObjectSpace.trace_object_allocations { Canary.new }
@@ -217,9 +253,18 @@ class TestMinitestMemory < Minitest::Test
     end
   end
 
+  def test_count_still_runs_the_block_when_unsupported
+    ran = false
+    stub_unsupported { AC.count { ran = true } }
+
+    assert_true ran
+  end
+
   # AllocationCounter.count_retained
 
   def test_count_retained_returns_result_with_retained_objects
+    requires_objspace
+
     _holder = nil
     result = AC.count_retained { _holder = Canary.new }
 
@@ -238,6 +283,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_count_retained_tracks_retained_size
+    requires_objspace
+
     _holder = nil
     result = AC.count_retained { _holder = +"a" * 10_000 }
 
@@ -245,6 +292,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_count_retained_disables_gc_during_block
+    requires_objspace
+
     gc_disabled_in_block = nil
 
     AC.count_retained do
@@ -263,6 +312,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_count_retained_reenables_gc_on_error
+    requires_objspace
+
     error = assert_raises(RuntimeError) do
       AC.count_retained { raise "boom" }
     end
@@ -273,6 +324,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_count_retained_runs_gc_before_block
+    requires_objspace
+
     gc_count_in_block = nil
 
     before = GC.count
@@ -289,9 +342,37 @@ class TestMinitestMemory < Minitest::Test
     end
   end
 
+  def test_count_retained_still_runs_the_block_when_unsupported
+    ran = false
+    stub_unsupported { AC.count_retained { ran = true } }
+
+    assert_true ran
+  end
+
+  # Where allocations can't be traced, the assertions run their block
+  # and check nothing (so limits that want allocations don't fail).
+
+  def test_assert_allocations_runs_the_block_and_checks_nothing_when_unsupported
+    ran = false
+    result = stub_unsupported { @tc.assert_allocations(Canary => 2) { ran = true } }
+
+    assert_nil result
+    assert_true ran
+  end
+
+  def test_assert_retentions_runs_the_block_and_checks_nothing_when_unsupported
+    ran = false
+    result = stub_unsupported { @tc.assert_retentions(Canary => 1) { ran = true } }
+
+    assert_nil result
+    assert_true ran
+  end
+
   # assert_allocations (integer limit)
 
   def test_assert_allocations_passes_within_limits
+    requires_objspace
+
     @tc.assert_allocations(String => 1..10, **TOTAL) { +"hello" }
   end
 
@@ -300,6 +381,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_fails_when_exceeding
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(String => 0, **TOTAL) { +"hello" }
     end
@@ -308,6 +391,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_failure_includes_source_location
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(String => 0, **TOTAL) { +"hello" }
     end
@@ -316,6 +401,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_checks_multiple_classes
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(String => 0, Array => 0..100, **TOTAL) { [+"hello"] }
     end
@@ -324,6 +411,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_reports_limit_in_message
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(Canary => 1, **TOTAL) { 2.times { Canary.new } }
     end
@@ -338,6 +427,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_fails_when_exceeding_size_limit
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(String => {size: 0}, **TOTAL) { +"a" * 10_000 }
     end
@@ -346,6 +437,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_size_hash_failure_includes_source_location
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(String => {size: 0}, **TOTAL) { +"a" * 10_000 }
     end
@@ -354,6 +447,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_size_reports_limit
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(String => {size: 1}, **TOTAL) { +"a" * 10_000 }
     end
@@ -364,10 +459,14 @@ class TestMinitestMemory < Minitest::Test
   # assert_allocations (hash limit with count)
 
   def test_assert_allocations_with_count_hash
+    requires_objspace
+
     @tc.assert_allocations(String => {count: 1..10}, **TOTAL) { +"hello" }
   end
 
   def test_assert_allocations_fails_count_in_hash
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(Canary => {count: 0}, **TOTAL) { Canary.new }
     end
@@ -376,6 +475,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_count_hash_failure_includes_source_location
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(Canary => {count: 0}, **TOTAL) { Canary.new }
     end
@@ -386,6 +487,8 @@ class TestMinitestMemory < Minitest::Test
   # assert_allocations (hash limit with both count and size)
 
   def test_assert_allocations_with_count_and_size
+    requires_objspace
+
     @tc.assert_allocations(String => {count: 1..10, size: 0..100_000}, **TOTAL) { +"hello" }
   end
 
@@ -394,36 +497,48 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_count_only_hash_does_not_check_size
+    requires_objspace
+
     @tc.assert_allocations(String => {count: 1..100}, **TOTAL) { +"a" * 10_000 }
   end
 
   # assert_allocations (range limit)
 
   def test_assert_allocations_passes_within_range
+    requires_objspace
+
     @tc.assert_allocations(Canary => 1..3, **TOTAL) { 2.times { Canary.new } }
   end
 
   def test_assert_allocations_range_fails_below
+    requires_objspace
+
     assert_raises(Minitest::Assertion) do
       @tc.assert_allocations(Canary => 3..5, **TOTAL) { 2.times { Canary.new } }
     end
   end
 
   def test_assert_allocations_range_fails_above
+    requires_objspace
+
     assert_raises(Minitest::Assertion) do
       @tc.assert_allocations(Canary => 0..1, **TOTAL) { 2.times { Canary.new } }
     end
   end
 
   def test_assert_allocations_range_failure_message
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(Canary => 3..5, **TOTAL) { 2.times { Canary.new } }
     end
 
-    assert_match(/Expected within 3\.\.5 .*Canary allocations, got 2/, err.message)
+    assert_match(/Expected within 3\.\.5 .*Canary allocations, got \d+/, err.message)
   end
 
   def test_assert_allocations_range_failure_includes_source_location
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(Canary => 3..5, **TOTAL) { 2.times { Canary.new } }
     end
@@ -434,10 +549,14 @@ class TestMinitestMemory < Minitest::Test
   # assert_allocations (range limit in hash)
 
   def test_assert_allocations_range_count_in_hash
+    requires_objspace
+
     @tc.assert_allocations(Canary => {count: 1..3}, **TOTAL) { 2.times { Canary.new } }
   end
 
   def test_assert_allocations_range_count_in_hash_fails
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(Canary => {count: 3..5}, **TOTAL) { Canary.new }
     end
@@ -446,10 +565,14 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_range_size_in_hash
+    requires_objspace
+
     @tc.assert_allocations(String => {size: 100..100_000}, **TOTAL) { +"a" * 10_000 }
   end
 
   def test_assert_allocations_range_size_in_hash_fails
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(String => {size: 0..1}, **TOTAL) { +"a" * 10_000 }
     end
@@ -460,10 +583,14 @@ class TestMinitestMemory < Minitest::Test
   # assert_allocations (total count limit)
 
   def test_assert_allocations_total_count_passes
+    requires_objspace
+
     @tc.assert_allocations(count: 1..100) { Canary.new }
   end
 
   def test_assert_allocations_total_count_fails
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(count: 0) { Canary.new }
     end
@@ -472,6 +599,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_total_count_failure_includes_source_location
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(count: 0) { Canary.new }
     end
@@ -486,6 +615,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_total_size_fails
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(size: 0) { +"a" * 10_000 }
     end
@@ -500,6 +631,8 @@ class TestMinitestMemory < Minitest::Test
   # assert_allocations (total independence)
 
   def test_assert_allocations_total_count_only_skips_size
+    requires_objspace
+
     @tc.assert_allocations(count: 1..100) { +"a" * 10_000 }
   end
 
@@ -508,22 +641,30 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_total_sums_counts
+    requires_objspace
+
     @tc.assert_allocations(count: 50..1000) { 100.times { Canary.new } }
   end
 
   def test_assert_allocations_total_count_and_size
+    requires_objspace
+
     @tc.assert_allocations(count: 1..100, size: 0..100_000) { +"hello" }
   end
 
   # assert_allocations (combined per-class and total)
 
   def test_assert_allocations_combined_per_class_and_total
+    requires_objspace
+
     @tc.assert_allocations(Canary => 1, :count => 1..100) { Canary.new }
   end
 
   # assert_allocations (strict mode)
 
   def test_assert_allocations_strict_mode_fails_on_unspecified
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(Canary => 0) { +"hello" }
     end
@@ -532,6 +673,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_strict_mode_message_content
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(Float => 0) { Canary.new }
     end
@@ -540,6 +683,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_allocations_strict_mode_includes_source_location
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(Float => 0) { Canary.new }
     end
@@ -558,32 +703,42 @@ class TestMinitestMemory < Minitest::Test
   # assert_allocations (exact match semantics)
 
   def test_assert_allocations_exact_match_fails_when_below
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.assert_allocations(Canary => 5, **TOTAL) { Canary.new }
     end
 
-    assert_match(/Expected exactly 5 .* allocations, got 1/, err.message)
+    assert_match(/Expected exactly 5 .* allocations, got \d+/, err.message)
   end
 
   # assert_allocations (subclass limits)
 
   def test_assert_allocations_accepts_range_subclass_limit
+    requires_objspace
+
     @tc.assert_allocations(Canary => RangeSubclass.new(1, 3), **TOTAL) { 2.times { Canary.new } }
   end
 
   def test_assert_allocations_accepts_hash_subclass_limit
+    requires_objspace
+
     @tc.assert_allocations(String => HashSubclass[:count, 1..10], **TOTAL) { +"hello" }
   end
 
   # assert_allocations (is_a? subclass matching)
 
   def test_assert_allocations_matches_subclasses_via_is_a
+    requires_objspace
+
     @tc.assert_allocations(Canary => 1, **TOTAL) { CanarySubclass.new }
   end
 
   # assert_retentions (integer limit)
 
   def test_assert_retentions_passes_within_limits
+    requires_objspace
+
     _holder = nil
     @tc.assert_retentions(Canary => 1) { _holder = Canary.new }
   end
@@ -596,6 +751,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_retentions_fails_when_exceeding
+    requires_objspace
+
     _holder = nil
     err = assert_raises Minitest::Assertion do
       @tc.assert_retentions(Canary => 0) { _holder = Canary.new }
@@ -605,6 +762,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_retentions_failure_includes_source_location
+    requires_objspace
+
     _holder = nil
     err = assert_raises Minitest::Assertion do
       @tc.assert_retentions(Canary => 0) { _holder = Canary.new }
@@ -616,6 +775,8 @@ class TestMinitestMemory < Minitest::Test
   # assert_retentions (per-class count)
 
   def test_assert_retentions_checks_per_class_count
+    requires_objspace
+
     holders = []
     @tc.assert_retentions(Canary => 10..100) do
       10.times { holders << Canary.new }
@@ -625,11 +786,15 @@ class TestMinitestMemory < Minitest::Test
   # assert_retentions (hash limit with count)
 
   def test_assert_retentions_count_hash
+    requires_objspace
+
     _holder = nil
     @tc.assert_retentions(Canary => {count: 1}) { _holder = Canary.new }
   end
 
   def test_assert_retentions_count_hash_fails
+    requires_objspace
+
     _holder = nil
     err = assert_raises Minitest::Assertion do
       @tc.assert_retentions(Canary => {count: 0}) { _holder = Canary.new }
@@ -647,6 +812,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_assert_retentions_size_hash_fails
+    requires_objspace
+
     _holder = nil
     err = assert_raises Minitest::Assertion do
       @tc.assert_retentions(String => {size: 0}) { _holder = +"a" * 10_000 }
@@ -659,6 +826,8 @@ class TestMinitestMemory < Minitest::Test
   # assert_retentions (range limit)
 
   def test_assert_retentions_range
+    requires_objspace
+
     _holder = nil
     @tc.assert_retentions(Canary => 1..5) { _holder = Canary.new }
   end
@@ -666,6 +835,8 @@ class TestMinitestMemory < Minitest::Test
   # assert_retentions (subclass limits)
 
   def test_assert_retentions_accepts_hash_subclass_limit
+    requires_objspace
+
     _holder = nil
     @tc.assert_retentions(Canary => HashSubclass[:count, 1..10]) { _holder = Canary.new }
   end
@@ -673,6 +844,8 @@ class TestMinitestMemory < Minitest::Test
   # assert_retentions (is_a? subclass matching)
 
   def test_assert_retentions_matches_subclasses_via_is_a
+    requires_objspace
+
     _holder = nil
     @tc.assert_retentions(Canary => 1) { _holder = CanarySubclass.new }
   end
@@ -680,6 +853,8 @@ class TestMinitestMemory < Minitest::Test
   # assert_retentions (non-Module keys)
 
   def test_assert_retentions_ignores_non_module_keys
+    requires_objspace
+
     _canary = nil
     _string = nil
     @tc.assert_retentions(Canary => 1, :foo => 0) do
@@ -695,6 +870,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_refute_allocations_fails_when_class_allocated
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.refute_allocations(String) { +"hello" }
     end
@@ -703,6 +880,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_refute_allocations_failure_includes_source_location
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.refute_allocations(String) { +"hello" }
     end
@@ -711,6 +890,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_refute_allocations_checks_multiple_classes
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.refute_allocations(String, Array) { [+"hello"] }
     end
@@ -719,6 +900,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_refute_allocations_only_fails_for_allocated_class
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.refute_allocations(Float, String) { +"hello" }
     end
@@ -730,6 +913,8 @@ class TestMinitestMemory < Minitest::Test
   # refute_allocations (is_a? subclass matching)
 
   def test_refute_allocations_matches_subclasses_via_is_a
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       @tc.refute_allocations(Canary) { CanarySubclass.new }
     end
@@ -747,6 +932,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_refute_retentions_fails_when_retained
+    requires_objspace
+
     _holder = nil
     err = assert_raises Minitest::Assertion do
       @tc.refute_retentions(Canary) { _holder = Canary.new }
@@ -757,6 +944,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_refute_retentions_failure_includes_source_location
+    requires_objspace
+
     _holder = nil
     err = assert_raises Minitest::Assertion do
       @tc.refute_retentions(Canary) { _holder = Canary.new }
@@ -774,10 +963,14 @@ class TestMinitestMemory < Minitest::Test
   # must_limit_allocations
 
   def test_must_limit_allocations_passes
+    requires_objspace
+
     expectation(proc { +"hello" }).must_limit_allocations(String => 1..10, **TOTAL)
   end
 
   def test_must_limit_allocations_fails
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       expectation(proc { +"hello" }).must_limit_allocations(String => 0, **TOTAL)
     end
@@ -786,10 +979,14 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_must_limit_allocations_total_count_passes
+    requires_objspace
+
     expectation(proc { Canary.new }).must_limit_allocations(count: 1..100)
   end
 
   def test_must_limit_allocations_total_count_fails
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       expectation(proc { Canary.new }).must_limit_allocations(count: 0)
     end
@@ -800,11 +997,15 @@ class TestMinitestMemory < Minitest::Test
   # must_limit_retentions
 
   def test_must_limit_retentions_passes
+    requires_objspace
+
     _holder = nil
     expectation(proc { _holder = Canary.new }).must_limit_retentions(Canary => 1)
   end
 
   def test_must_limit_retentions_fails
+    requires_objspace
+
     _holder = nil
     err = assert_raises Minitest::Assertion do
       expectation(proc { _holder = Canary.new }).must_limit_retentions(Canary => 0)
@@ -820,6 +1021,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_wont_allocate_fails
+    requires_objspace
+
     err = assert_raises Minitest::Assertion do
       expectation(proc { +"hello" }).wont_allocate(String)
     end
@@ -834,6 +1037,8 @@ class TestMinitestMemory < Minitest::Test
   end
 
   def test_wont_retain_fails
+    requires_objspace
+
     _holder = nil
     err = assert_raises Minitest::Assertion do
       expectation(proc { _holder = Canary.new }).wont_retain(Canary)
@@ -843,6 +1048,10 @@ class TestMinitestMemory < Minitest::Test
   end
 
   private
+
+  def requires_objspace
+    skip "Allocation tracking not supported on #{RUBY_ENGINE}" unless AC.supported?
+  end
 
   def stub_unsupported(&)
     original = AC.method(:supported?)

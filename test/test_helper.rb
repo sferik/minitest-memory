@@ -1,8 +1,12 @@
 require "simplecov"
 SimpleCov.start do
-  enable_coverage :branch
+  if RUBY_ENGINE == "ruby"
+    enable_coverage :branch
+    minimum_coverage line: 100, branch: 100
+  else
+    minimum_coverage line: 51
+  end
   skip "/test/"
-  minimum_coverage line: 100, branch: 100
 end
 
 require "minitest/autorun"
