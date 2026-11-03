@@ -15,7 +15,6 @@ jobs:
     # Development Rubies (ruby-head, jruby-head, truffleruby-head) can't
     # fail the build; a failure there opens an issue instead (see the last
     # step).
-    continue-on-error: ${{ matrix.experimental }}
     permissions:
       contents: read
       issues: write
@@ -33,16 +32,20 @@ jobs:
             experimental: true
     steps:
       - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
+      - id: ruby
+        uses: ruby/setup-ruby@v1
+        continue-on-error: ${{ matrix.experimental }}
         with:
           bundler-cache: true
           ruby-version: ${{ matrix.ruby-version }}
-      - run: bundle exec rake test
+      - id: test
+        run: bundle exec rake test
+        continue-on-error: ${{ matrix.experimental }}
       # Opens an issue for the failure (or comments on the one already
       # open), which notifies the repository's watchers. Pull requests
       # from forks can't write issues, so only pushes report.
       - name: Report a failure on a development Ruby
-        if: failure() && matrix.experimental && github.event_name == 'push'
+        if: (steps.ruby.outcome == 'failure' || steps.test.outcome == 'failure') && matrix.experimental && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
           RUBY_VERSION_NAME: ${{ matrix.ruby-version }}
